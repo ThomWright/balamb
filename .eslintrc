@@ -1,0 +1,7 @@
+{
+  "extends": ["@candide/eslint-config-node-service"],
+  "plugins": [],
+  "rules": {
+    "no-console": "off"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "typeRoots": ["./typings", "./node_modules/@types"],
+    "outDir": "./dist",
+    "target": "es2018",
+    "declaration": true,
+    "module": "commonjs",
+    "lib": ["es2018"],
+    "noUnusedLocals": true,
+    "noErrorTruncation": true,
+    "pretty": true,
+    "strict": true
+  }
+}
