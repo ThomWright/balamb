@@ -2,6 +2,7 @@
   "extends": ["@candide/eslint-config-node-service"],
   "plugins": [],
   "rules": {
-    "no-console": "off"
+    "no-console": "off",
+    "import/no-named-as-default": "off"
   }
 }

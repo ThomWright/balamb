@@ -1,13 +1,18 @@
-// import {a} from "./a"
+import Balamb, {BalambError} from "../../src"
+import {CreateAnObj, CreateAString, MultipleDeps} from "./seeds"
 
-// export const ALL_SEEDS = {
-//   id1: a,
-//   // id2: b,
-// }
+async function testApp() {
+  const seeds = Balamb.register([CreateAString, CreateAnObj, MultipleDeps])
 
-// export type AllSeeds = typeof ALL_SEEDS
-// export type AllSeedIds = keyof AllSeeds
+  if (seeds instanceof BalambError) {
+    throw new Error("oh no")
+  }
 
-// export type Results<Deps extends AllSeedIds> = {
-//   [K in Deps]: ReturnType<AllSeeds[K]["plant"]>
-// }
+  const result = await seeds.run()
+
+  console.log(result)
+}
+
+testApp().catch((e) => {
+  console.error(e)
+})

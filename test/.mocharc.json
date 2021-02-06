@@ -1,0 +1,7 @@
+{
+  "require": ["ts-node/register"],
+  "reporter": "spec",
+  "ui": "bdd",
+  "timeout": "10s",
+  "spec": ["test/unit/**/*.ts"]
+}

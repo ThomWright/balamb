@@ -1,4 +1,4 @@
-# Balamb
+# Balamb 🌱
 
 ## Similar libraries
 

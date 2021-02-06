@@ -1,0 +1,9 @@
+src
+test
+tsconfig*
+.prettierrc
+.prettierignore
+.editorconfig
+.eslintignore
+.eslintrc
+.fitcommitjsrc.yml
