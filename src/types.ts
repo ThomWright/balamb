@@ -25,6 +25,9 @@ export type SeedRunner<Result, Dependencies> = (
 ) => Promise<Result>
 
 export interface SeededGarden {
+  /**
+   * Plant seeds
+   */
   run: Run
 }
 
@@ -34,14 +37,16 @@ export interface Run {
 
 export interface RunResult {
   available: number
-  run: number
+  planted: number
 }
 
-export const ERROR_CODES = ["NON_UNIQUE_IDS"] as const
+export const ERROR_CODES = ["NON_UNIQUE_IDS", "CIRCULAR_DEPENDENCY"] as const
 export type ErrorCode = typeof ERROR_CODES[number]
 
+// TODO: Make these give more contextual information
 const ErrorMessages: Record<ErrorCode, string> = {
   NON_UNIQUE_IDS: "Non-unique seed IDs found",
+  CIRCULAR_DEPENDENCY: "Circular dependency found",
 }
 
 export class BalambError extends Error {
