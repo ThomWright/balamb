@@ -1,4 +1,4 @@
-import Balamb, {BalambError} from "../../src"
+import Balamb, {BalambError} from "../../../src"
 import {CreateAnObj, CreateAString, MultipleDeps} from "./seeds"
 
 async function testApp() {

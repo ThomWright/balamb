@@ -1,13 +1,7 @@
 import {expect} from "chai"
-import Balamb, {BalambError, SeedDef, SeededGarden} from "../../src"
+import Balamb, {BalambError, SeededGarden} from "../../src"
 import "mocha"
-
-export const CreateAString: SeedDef<string, void> = {
-  id: "a_string",
-  description: "Just returns a string",
-
-  plant: async () => "thing",
-}
+import {CreateAString} from "../fixtures/simple-app/seeds"
 
 describe("Basics", () => {
   it("should return the number of seeds available", async () => {
