@@ -29,7 +29,7 @@
   "husky": {
     "hooks": {
       "commit-msg": "node ./node_modules/fit-commit-js/lib/hook.js .git/COMMIT_EDITMSG",
-      "pre-commit": "npm run check-formatting && npm run lint",
+      "pre-commit": "npm run check-formatting && npm run lint && npm run check-ts-types",
       "pre-push": "npm run lint && npm run test && npm run check-licenses -- --summary"
     }
   },
