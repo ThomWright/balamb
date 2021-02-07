@@ -108,3 +108,6 @@ describe("Planting seeds", () => {
     expect(regResult.code).to.equal("CIRCULAR_DEPENDENCY")
   })
 })
+
+// TODO: test multiple, independent DAGs
+// TODO: test concurrency

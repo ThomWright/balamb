@@ -1,4 +1,4 @@
-import {SeedDef} from "../../../src/types"
+import {SeedDef} from "../../../src"
 
 export const CreateAString: SeedDef<string, void> = {
   id: "a_string",
