@@ -32,7 +32,7 @@ export interface SeededGarden {
 }
 
 export interface Run {
-  (): Promise<RunResult>
+  (opts?: {concurrency: number}): Promise<RunResult>
 }
 
 export interface RunResult {

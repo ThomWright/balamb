@@ -18,8 +18,8 @@
   },
   "scripts": {
     "check-ts-types": "tsc --noEmit",
-    "lint": "eslint --ext js,ts src/ test/",
-    "fix-linting": "eslint --fix --ext js,ts src/ test/",
+    "lint": "eslint --ext ts src/ test/",
+    "fix-linting": "eslint --fix --ext ts src/ test/",
     "check-formatting": "./node_modules/.bin/prettier '**/*.ts' --list-different",
     "fix-formatting-all": "./node_modules/.bin/prettier '**/*.ts' --write",
     "fix-formatting": "./node_modules/.bin/prettier $(git status --porcelain | sed 's/^...//' | grep -E '\\.tsx?$') --write",

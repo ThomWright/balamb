@@ -103,16 +103,47 @@ export const Balamb: BalambType = {
     }
 
     return {
-      run: async (): Promise<RunResult> => {
-        const resultsCache: Record<string, unknown> = {}
+      run: async (opts?: {concurrency: number}): Promise<RunResult> => {
+        const {concurrency = 10} = opts ?? {}
+        const limit =
+          isFinite(concurrency) && concurrency >= 1
+            ? Math.min(concurrency, queue.length)
+            : queue.length
 
         let planted = 0
 
-        for (const id of queue) {
-          const seed = indexedSeeds.get(id) as AnySeedDef
-          resultsCache[seed.id] = await seed.plant(resultsCache)
-          planted++
-        }
+        await new Promise<void>((resolve) => {
+          const resultsCache: Record<string, unknown> = {}
+
+          let index = 0
+          let inFlight = 0
+
+          function drainQueue(): void {
+            const id = queue[index]
+
+            index++
+            inFlight++
+
+            const seed = indexedSeeds.get(id) as AnySeedDef
+            // eslint-disable-next-line @typescript-eslint/no-floating-promises
+            seed.plant(resultsCache).then((result) => {
+              resultsCache[seed.id] = result
+
+              planted++
+              inFlight--
+
+              if (inFlight < limit && index < queue.length) {
+                drainQueue()
+              } else if (planted === queue.length) {
+                resolve()
+              }
+            })
+          }
+
+          while (index < limit) {
+            drainQueue()
+          }
+        })
 
         return {
           available: seeds.length,

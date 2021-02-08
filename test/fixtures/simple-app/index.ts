@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import Balamb, {BalambError} from "../../../src"
 import {CreateAnObj, CreateAString, MultipleDeps} from "./seeds"
 
