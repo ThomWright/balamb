@@ -110,6 +110,22 @@ I had to spend some time thinking about that! I'm not particularly happy with it
 
 Hopefully this illustrates the beginnings of what this might end up looking like with even bigger examples, and what this library aims to help avoid.
 
+Instead, we can write it like this, assuming the task definitions (seeds) and their dependencies have been written elsewhere:
+
+```typescript
+const seeds = Balamb.register([
+  Steve,
+  StevesPost,
+  Alan,
+  AlansCommentToSteve,
+  StevesReplyToAlan,
+]) as SeededGarden
+
+await seeds.run()
+```
+
+Done! This will run in a generally efficient way with no manual wiring.
+
 ## Similar libraries
 
 - [promise-dag](https://github.com/vvvvalvalval/promise-dag)
