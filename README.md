@@ -59,7 +59,7 @@ Let's look at some examples.
 
 ```typescript
 // Running two tasks sequentially:
-const result1 = await task1
+const result1 = await task1()
 await task2(result1)
 
 // Running two tasks concurrently:
