@@ -1,8 +1,8 @@
 # Balamb 🌱
 
-Run a set of dependent, async tasks with type-safe dependencies.
+Concurrently run a set of dependent, asynchronous tasks with type-safe dependencies.
 
-Initially intended for data seeding, hence the name.
+This library was initially intended for data seeding, hence the name, which comes from Final Fantasy VIII. Balamb Garden is a school where cadets, known as SeeDs, are trained.
 
 ## Example
 
