@@ -34,56 +34,8 @@ describe("Duplicate IDs", () => {
   })
 })
 
-describe("Circular dependencies", () => {
-  it("should be detected and result in an error", async () => {
-    const Btemp: SeedDef<void, void> = {
-      id: "b",
-      description: "b",
-
-      plant: async () => {
-        //
-      },
-    }
-    const A: SeedDef<void, {b: void}> = {
-      id: "a",
-      description: "a",
-      dependsOn: {b: Btemp},
-
-      plant: async () => {
-        //
-      },
-    }
-    const B: SeedDef<void, {a: void}> = {
-      ...Btemp,
-      dependsOn: {a: A},
-    }
-
-    const regResult = Balamb.register([A, B]) as BalambError
-
-    expect(regResult).to.be.instanceOf(BalambError)
-    expect(regResult.code).to.equal("CIRCULAR_DEPENDENCY")
-  })
-})
-
-describe("Planting seeds", () => {
-  it("should plant a seed", async () => {
-    let plant = false
-    const SetPlantToTrue: SeedDef<void, void> = {
-      id: "set_plant_true",
-      description: "Just sets plant to true",
-
-      plant: async () => {
-        plant = true
-      },
-    }
-    const seeds = Balamb.register([SetPlantToTrue]) as SeededGarden
-
-    await seeds.run()
-
-    expect(plant, "Seed was planted").to.be.true
-  })
-
-  it("should plant a dependency first", async () => {
+describe("Dependencies", () => {
+  it("should be planted first", async () => {
     const plantOrder: Array<string> = []
 
     const A: SeedDef<void, void> = {
@@ -109,6 +61,89 @@ describe("Planting seeds", () => {
     await seeds.run()
 
     expect(plantOrder, "Order of planting").to.eql(["a", "b"])
+  })
+
+  it("should be available as arguments", async () => {
+    let result: string | undefined
+
+    const A: SeedDef<string, void> = {
+      id: "a",
+      description: "a",
+
+      plant: async () => "a",
+    }
+    const B: SeedDef<string, {a: string}> = {
+      id: "b",
+      description: "b",
+      dependsOn: {a: A},
+
+      plant: async ({a}) => a + "b",
+    }
+    const C: SeedDef<void, {b: string}> = {
+      id: "c",
+      description: "c",
+      dependsOn: {b: B},
+
+      plant: async ({b}) => {
+        result = b + "c"
+      },
+    }
+
+    const seeds = Balamb.register([A, B, C]) as SeededGarden
+
+    await seeds.run()
+
+    expect(result).to.eql("abc")
+  })
+
+  context("Circular dependencies", () => {
+    it("should be detected and result in an error", async () => {
+      const Btemp: SeedDef<void, void> = {
+        id: "b",
+        description: "b",
+
+        plant: async () => {
+          //
+        },
+      }
+      const A: SeedDef<void, {b: void}> = {
+        id: "a",
+        description: "a",
+        dependsOn: {b: Btemp},
+
+        plant: async () => {
+          //
+        },
+      }
+      const B: SeedDef<void, {a: void}> = {
+        ...Btemp,
+        dependsOn: {a: A},
+      }
+
+      const regResult = Balamb.register([A, B]) as BalambError
+
+      expect(regResult).to.be.instanceOf(BalambError)
+      expect(regResult.code).to.equal("CIRCULAR_DEPENDENCY")
+    })
+  })
+})
+
+describe("Seeds", () => {
+  it("should get planted", async () => {
+    let plant = false
+    const SetPlantToTrue: SeedDef<void, void> = {
+      id: "set_plant_true",
+      description: "Just sets plant to true",
+
+      plant: async () => {
+        plant = true
+      },
+    }
+    const seeds = Balamb.register([SetPlantToTrue]) as SeededGarden
+
+    await seeds.run()
+
+    expect(plant, "Seed was planted").to.be.true
   })
 
   context("Multiple, independent DAGs", () => {
@@ -180,10 +215,9 @@ describe("Concurrency", () => {
           await promiseB
         },
       }
-      const B: SeedDef<void, {a: void}> = {
+      const B: SeedDef<void, void> = {
         id: "b",
         description: "b",
-        dependsOn: {a: A},
 
         plant: async () => {
           bStarted()
