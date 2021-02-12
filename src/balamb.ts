@@ -1,4 +1,4 @@
-import {BalambError} from "./errors"
+import {BalambError, SeedFailure} from "./errors"
 import {BalambType, Id, RunResult, SeedDef, SeededGarden} from "./types"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -141,7 +141,7 @@ export const Balamb: BalambType = {
             ? Math.min(concurrency, queue.length)
             : queue.length
 
-        const errors: Array<{id: Id; error: unknown}> = []
+        const errors: Array<SeedFailure> = []
         const resolved = new Set<Id>()
         let planted = 0
 
@@ -193,6 +193,9 @@ export const Balamb: BalambType = {
               .catch((error: unknown) => {
                 errors.push({id, error})
                 inFlight--
+                if (inFlight === 0) {
+                  resolve()
+                }
               })
             return true
           }

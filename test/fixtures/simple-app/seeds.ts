@@ -47,7 +47,10 @@ export const Fail: SeedDef<number, void> = {
   description: "Throws an error",
 
   plant: async () => {
-    throw new Error("oh no")
+    await new Promise<void>((resolve, reject) => {
+      nextTick(() => reject("Oh no"))
+    })
+    return 5
   },
 }
 

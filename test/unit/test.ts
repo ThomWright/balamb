@@ -138,6 +138,12 @@ describe("Dependencies", () => {
       expect(info.cycle).to.eql(["a", "b", "a"])
     })
   })
+
+  context("Missing dependencies", () => {
+    it.skip("should ...", async () => {
+      // TODO: missing dependencies!
+    })
+  })
 })
 
 describe("Seeds", () => {
@@ -350,11 +356,54 @@ describe("Error handling", () => {
       expect(result).to.be.instanceOf(BalambError)
       expect(result.info.code).to.equal("SEED_FAILURES")
       const info = result.info as SeedFailures
-      expect(info.failures.map((f) => f.id)).to.eql(["fail"])
+      expect(info.failures.map((f) => f.id)).to.eql([Fail.id])
     })
 
-    it("should stop subsequent seeds running", () => {
-      // TODO:
+    it("should stop subsequent seeds running", async () => {
+      let didRun = false
+      const seeds = Balamb.register([
+        Fail,
+        {
+          id: "depends-on-fail",
+          description: "Should never run",
+
+          dependsOn: {
+            f: Fail,
+          },
+
+          plant: async () => {
+            didRun = true
+          },
+        },
+      ]) as SeededGarden
+
+      await seeds.run()
+
+      expect(didRun, "dependency did run").to.be.false
+    })
+
+    it("should let currently running seeds finish", async () => {
+      let didFinish = false
+      const seeds = Balamb.register([
+        Fail,
+        {
+          id: "not-fail",
+          description: "Should finish",
+
+          plant: async () => {
+            await new Promise<void>((resolve) => {
+              setTimeout(() => {
+                didFinish = true
+                resolve()
+              }, 10)
+            })
+          },
+        },
+      ]) as SeededGarden
+
+      await seeds.run()
+
+      expect(didFinish, "other seed did finish").to.be.true
     })
   })
 })
