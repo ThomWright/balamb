@@ -1,6 +1,6 @@
+import {expect} from "chai"
 import "mocha"
 import {nextTick} from "process"
-import {expect} from "chai"
 import Balamb, {BalambError, SeedDef, SeededGarden} from "../../src"
 import {CreateAString} from "../fixtures/simple-app/seeds"
 

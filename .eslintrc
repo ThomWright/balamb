@@ -1,9 +1,78 @@
 {
-  "extends": ["@candide/eslint-config-node-service"],
-  "plugins": [],
+  "root": true,
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "project": "tsconfig.json"
+  },
+  "plugins": ["@typescript-eslint", "mocha-no-only"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:@typescript-eslint/recommended-requiring-type-checking",
+    "plugin:import/errors",
+    "plugin:import/warnings",
+    "plugin:import/typescript",
+    "prettier/@typescript-eslint", // Uses eslint-config-prettier to disable ESLint rules from @typescript-eslint/eslint-plugin that would conflict with prettier
+    "plugin:prettier/recommended" // Enables eslint-plugin-prettier and displays prettier errors as ESLint errors. Make sure this is always the last configuration in the extends array.
+  ],
   "rules": {
     "no-console": "warn",
     "import/no-named-as-default": "off",
-    "no-plusplus": "off"
+    "no-plusplus": "off",
+
+    "@typescript-eslint/require-await": "off",
+    "@typescript-eslint/array-type": ["error", {"default": "generic"}],
+    "@typescript-eslint/strict-boolean-expressions": [
+      "error",
+      {
+        "allowString": false,
+        "allowNullableObject": true,
+        "allowNullableBoolean": false,
+        "allowNullableString": false
+      }
+    ],
+    "@typescript-eslint/await-thenable": ["error"],
+    "no-unused-vars": "off",
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_"
+      }
+    ],
+    "@typescript-eslint/no-use-before-define": ["error", {"functions": false}],
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/no-floating-promises": "error",
+    "@typescript-eslint/no-throw-literal": "error",
+    "@typescript-eslint/restrict-plus-operands": "error",
+    "@typescript-eslint/no-this-alias": "error",
+    "@typescript-eslint/no-var-requires": "warn",
+
+    "import/no-extraneous-dependencies": ["error"],
+    "object-shorthand": "error",
+    "radix": "error",
+    "no-unsafe-finally": "error",
+    "no-return-await": "error",
+    "default-case": "error",
+    "no-template-curly-in-string": "error",
+
+    // Some import rules are turned off as TS already checks these and they are pretty slow
+    // https://github.com/typescript-eslint/typescript-eslint/blob/master/docs/getting-started/linting/FAQ.md#eslint-plugin-import
+    "import/named": "off",
+    "import/namespace": "off",
+    "import/default": "off",
+    "import/no-named-as-default-member": "off",
+
+    "import/order": [
+      "error",
+      {
+        "newlines-between": "ignore",
+        "groups": [["builtin", "external"], "parent", "sibling", "index"],
+        "alphabetize": {
+          "order": "asc"
+        }
+      }
+    ],
+    "mocha-no-only/mocha-no-only": ["error"]
   }
 }
