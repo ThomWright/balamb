@@ -231,53 +231,83 @@ describe("Concurrency", () => {
     })
   })
 
-  context("concurrency = 1", () => {
+  context("concurrency = 1, 3 seeds", () => {
     it("should run sequentially", async () => {
       const events: Array<string> = []
 
-      const A: SeedDef<void, void> = {
-        id: "a",
-        description: "a",
+      const seedDefs = ["a", "b", "c"].map(
+        (id): SeedDef<void, void> => {
+          return {
+            id,
+            description: id,
 
-        plant: async () => {
-          events.push("A")
-          await new Promise<void>((resolve) => {
-            nextTick(() => (events.push("A"), resolve()))
-          })
+            plant: async () => {
+              events.push("(")
+              await new Promise<void>((resolve) => {
+                nextTick(() => (events.push(")"), resolve()))
+              })
+            },
+          }
         },
-      }
-      const B: SeedDef<void, {a: void}> = {
-        id: "b",
-        description: "b",
-        dependsOn: {a: A},
+      )
 
-        plant: async () => {
-          events.push("B")
-          await new Promise<void>((resolve) => {
-            nextTick(() => (events.push("B"), resolve()))
-          })
-        },
-      }
-
-      const seeds = Balamb.register([A, B]) as SeededGarden
+      const seeds = Balamb.register(seedDefs) as SeededGarden
 
       await seeds.run({concurrency: 1})
 
-      // Either of these are correct
-      // ["A", "A", "B", "B"]
-      // ["B", "B", "A", "A"]
-      // When run concurrently, will end up as e.g. ["A", "B", "A", "B"]
-      // I *think* this is reliable
-      expect(events[0], "first event should equal second event").to.equal(
-        events[1],
-      )
-      expect(events[2], "third event should equal fourth event").to.equal(
-        events[3],
-      )
+      expect(events).to.have.length(seedDefs.length * 2)
+
+      checkConcurrency(events, {maxConcurrency: 1})
     })
   })
 
-  // TODO: test concurrency < queue length
+  context("concurrency = 2, 7 seeds", () => {
+    it("should not exceed stated limit", async () => {
+      const events: Array<string> = []
+
+      const seedDefs = ["a", "b", "c", "d", "e", "f", "g"].map(
+        (id): SeedDef<void, void> => {
+          return {
+            id,
+            description: id,
+
+            plant: async () => {
+              events.push("(")
+              await new Promise<void>((resolve) => {
+                nextTick(() => (events.push(")"), resolve()))
+              })
+            },
+          }
+        },
+      )
+
+      const seeds = Balamb.register(seedDefs) as SeededGarden
+
+      await seeds.run({concurrency: 2})
+
+      expect(events).to.have.length(seedDefs.length * 2)
+
+      checkConcurrency(events, {maxConcurrency: 2})
+    })
+  })
 })
+
+function checkConcurrency(
+  events: Array<string>,
+  {maxConcurrency}: {maxConcurrency: number},
+) {
+  const numUnclosed = events.reduce((totalUnclosed, parens) => {
+    expect(parens).to.be.oneOf(["(", ")"])
+    if (parens === "(") {
+      totalUnclosed++
+    } else if (parens === ")") {
+      totalUnclosed--
+    }
+    expect(totalUnclosed).to.be.at.most(maxConcurrency)
+    return totalUnclosed
+  }, 0)
+
+  expect(numUnclosed).to.equal(0)
+}
 
 // TODO: test failures
