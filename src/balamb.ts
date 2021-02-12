@@ -1,4 +1,9 @@
-import {RegistrationError, RunError, SeedFailure} from "./errors"
+import {
+  RegistrationError,
+  RunError,
+  SeedFailure,
+  CircularDependency,
+} from "./errors"
 import {BalambType, Id, RunResult, SeedDef, SeededGarden} from "./types"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -11,214 +16,274 @@ export const Balamb: BalambType = {
       return new RegistrationError({code: "NON_UNIQUE_IDS", duplicates})
     }
 
-    /*
-     * Kahn's algorithm for topological sort
-     */
+    const graph = createDAG(seeds)
 
-    // Working area for nodes which have all dependencies already in queue
-    // Initialise with nodes with no dependencies
-    const temp: Array<Id> = []
+    const result = sort(seeds, graph)
 
-    // If we have any edges left over then we have a circular dependency
-    let numEdges = 0
-
-    // We will plant seeds in this order
-    const queue: Array<Id> = []
-
-    /*
-     * Initialise
-     */
-
-    const incomingEdges = new Map<Id, Set<Id>>()
-    const outgoingEdges = new Map<Id, Set<Id>>()
-
-    const indexedSeeds = new Map<Id, AnySeedDef>()
-
-    seeds.forEach((seed) => {
-      indexedSeeds.set(seed.id, seed)
-
-      if (
-        "dependsOn" in seed &&
-        typeof seed.dependsOn === "object" &&
-        seed.dependsOn != null
-      ) {
-        const depDefs = Object.values(seed.dependsOn) as Array<
-          SeedDef<unknown, unknown>
-        >
-
-        depDefs.forEach((d) => {
-          {
-            const edgeSet = incomingEdges.get(d.id)
-            if (edgeSet != null) {
-              edgeSet.add(seed.id)
-            } else {
-              incomingEdges.set(d.id, new Set([seed.id]))
-            }
-          }
-          {
-            const edgeSet = outgoingEdges.get(seed.id)
-            if (edgeSet != null) {
-              edgeSet.add(d.id)
-            } else {
-              outgoingEdges.set(seed.id, new Set([d.id]))
-            }
-          }
-          numEdges++
-        })
-
-        // Node has no dependencies, add to temp queue
-        if (depDefs.length === 0) {
-          temp.push(seed.id)
-        }
-      } else {
-        temp.push(seed.id)
-      }
-    })
-
-    /*
-     * Do topological sort
-     */
-
-    // while temp is not empty do
-    // remove a node n from temp
-    // add n to queue
-    // for each node m with an edge e from m to n do
-    //     remove edge e from the graph
-    //     if m has no other outgoing edges then
-    //         insert m into temp
-
-    const remainingOutgoingEdges = new Map<Id, Set<Id>>()
-    outgoingEdges.forEach((v, k) => {
-      remainingOutgoingEdges.set(k, new Set(v))
-    })
-    while (temp.length > 0) {
-      const nId = temp.pop() as Id
-      queue.push(nId)
-      const nIncoming = incomingEdges.get(nId)
-      if (nIncoming) {
-        nIncoming.forEach((mId) => {
-          const mOutgoing = remainingOutgoingEdges.get(mId)
-          if (mOutgoing != null) {
-            mOutgoing.delete(nId)
-            if (mOutgoing.size === 0) {
-              // Clear up empty sets to make debugging easier
-              remainingOutgoingEdges.delete(mId)
-            }
-            numEdges--
-          }
-          if (mOutgoing == null || mOutgoing.size === 0) {
-            temp.push(mId)
-          }
-        })
-      }
+    if ("code" in result) {
+      return new RegistrationError(result)
     }
 
-    // Check for circular dependencies
-    if (numEdges !== 0) {
-      // Only report a single cycle for now
-      const cycle: Array<Id> = []
+    const queue = result
 
-      const seen: Set<Id> = new Set()
-      let id = remainingOutgoingEdges.keys().next().value as Id
-      while (!seen.has(id)) {
-        cycle.push(id)
-        seen.add(id)
-        const edges = remainingOutgoingEdges.get(id) as Set<Id>
-        id = edges.keys().next().value as Id
-      }
-      cycle.push(id)
-
-      return new RegistrationError({code: "CIRCULAR_DEPENDENCY", cycle})
-    }
+    const {outgoingEdges} = graph
 
     return {
       run: async (opts?: {
         concurrency: number
       }): Promise<RunResult | RunError> => {
         const {concurrency = 10} = opts ?? {}
-        const limit =
+        const concurrencyLimit =
           isFinite(concurrency) && concurrency >= 1
             ? Math.min(concurrency, queue.length)
             : queue.length
 
-        const errors: Array<SeedFailure> = []
-        const resolved = new Set<Id>()
-        let planted = 0
+        const failures: Array<SeedFailure> = []
 
-        await new Promise<void>((resolve) => {
-          const resultsCache: Record<Id, unknown> = {}
+        await processQueue(
+          queue,
+          outgoingEdges,
+          {concurrencyLimit},
+          (failure) => failures.push(failure),
+        )
 
-          let index = 0
-          let inFlight = 0
-
-          /** Retuns whether progress can be made */
-          function drainQueue(): boolean {
-            const id = queue[index]
-            const seed = indexedSeeds.get(id) as AnySeedDef
-
-            const depIds = outgoingEdges.get(seed.id)
-            if (
-              depIds != null &&
-              ![...depIds].every((depId) => resolved.has(depId))
-            ) {
-              // This seed's dependencies aren't ready yet
-              return false
-            }
-
-            index++
-            inFlight++
-
-            // eslint-disable-next-line @typescript-eslint/no-floating-promises
-            seed
-              .plant(resultsCache)
-              .then((result) => {
-                resultsCache[seed.id] = result
-
-                planted++
-                inFlight--
-                resolved.add(seed.id)
-
-                if (errors.length > 0) {
-                  if (inFlight === 0) {
-                    resolve()
-                  }
-                } else {
-                  if (inFlight < limit && index < queue.length) {
-                    drainQueue()
-                  } else if (planted === queue.length) {
-                    resolve()
-                  }
-                }
-              })
-              .catch((error: unknown) => {
-                errors.push({id, error})
-                inFlight--
-                if (inFlight === 0) {
-                  resolve()
-                }
-              })
-            return true
-          }
-
-          while (index < limit) {
-            const canContinue = drainQueue()
-            if (!canContinue) {
-              break
-            }
-          }
-        })
-
-        if (errors.length > 0) {
-          return new RunError({code: "SEED_FAILURES", failures: errors})
+        if (failures.length > 0) {
+          return new RunError({code: "SEED_FAILURES", failures})
         }
 
         return {
           available: seeds.length,
-          planted,
+          planted: queue.length,
         }
       },
     }
   },
+}
+
+function processQueue(
+  queue: Array<AnySeedDef>,
+  outgoingEdges: Map<Id, Set<Id>>,
+  {concurrencyLimit}: {concurrencyLimit: number},
+  onError: (error: SeedFailure) => void,
+) {
+  return new Promise<void>((finishedProcessing) => {
+    const resultsCache: Record<Id, unknown> = {}
+
+    // Kinda superfluous, but nicer to use
+    const resolved = new Set<Id>()
+
+    let nextItemIndex = 0
+    let inFlight = 0
+    let errored = false
+
+    /**
+     * Try processing the next item in the queue
+     * @returns Whether the next item began processing
+     */
+    function tryProcessingNextItem(): boolean {
+      // Pick next seed off the queue
+      const seed = queue[nextItemIndex]
+
+      // Determine if we can process it yet
+      const depIds = outgoingEdges.get(seed.id)
+      if (
+        depIds != null &&
+        ![...depIds].every((depId) => resolved.has(depId))
+      ) {
+        // This seed's dependencies aren't ready yet
+        return false
+      }
+
+      // Yep, we're gonna process it
+      nextItemIndex++
+      inFlight++
+
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      seed
+        .plant(resultsCache)
+        .then((result) => {
+          inFlight--
+
+          resultsCache[seed.id] = result
+          resolved.add(seed.id)
+
+          if (errored && inFlight === 0) {
+            finishedProcessing()
+          } else {
+            if (inFlight < concurrencyLimit && nextItemIndex < queue.length) {
+              tryProcessingNextItem()
+            } else if (resolved.size === queue.length) {
+              finishedProcessing()
+            }
+          }
+        })
+        .catch((error: unknown) => {
+          inFlight--
+          errored = true
+          onError({id: seed.id, error})
+          if (inFlight === 0) {
+            finishedProcessing()
+          }
+        })
+
+      return true
+    }
+
+    while (nextItemIndex < concurrencyLimit) {
+      const canContinue = tryProcessingNextItem()
+      if (!canContinue) {
+        break
+      }
+    }
+  })
+}
+
+/**
+ * Kahn's algorithm for topological sort
+ */
+function sort(
+  seeds: Array<AnySeedDef>,
+  {incomingEdges, outgoingEdges, indexedSeeds, edges}: DAG,
+): Array<AnySeedDef> | CircularDependency {
+  /*
+   * Initialise
+   */
+  /** Working area for nodes which have no unprocessed dependencies */
+  const processingQueue: Array<AnySeedDef> = []
+
+  /** If we end up with any edges left over then we have a circular dependency */
+  let unprocessedEdges = edges
+
+  /** Sorted queue - we will plant seeds in this order */
+  const queue: Array<AnySeedDef> = []
+
+  // Add seeds with no dependencies to processing queue
+  seeds.forEach((seed) => {
+    const es = outgoingEdges.get(seed.id)
+    if (es == null || es.size === 0) {
+      processingQueue.push(seed)
+    }
+  })
+
+  /*
+   * Do topological sort
+   */
+
+  // while temp is not empty do
+  // remove a node n from temp
+  // add n to queue
+  // for each node m with an edge e from m to n do
+  //     remove edge e from the graph
+  //     if m has no other outgoing edges then
+  //         insert m into temp
+
+  const remainingOutgoingEdges = new Map<Id, Set<Id>>()
+  outgoingEdges.forEach((v, k) => {
+    remainingOutgoingEdges.set(k, new Set(v))
+  })
+  while (processingQueue.length > 0) {
+    const n = processingQueue.pop() as AnySeedDef
+    queue.push(n)
+    const nIncoming = incomingEdges.get(n.id)
+    if (nIncoming) {
+      nIncoming.forEach((mId) => {
+        const mOutgoing = remainingOutgoingEdges.get(mId)
+        if (mOutgoing != null) {
+          mOutgoing.delete(n.id)
+          if (mOutgoing.size === 0) {
+            // Clear up empty sets to make debugging easier
+            remainingOutgoingEdges.delete(mId)
+          }
+          unprocessedEdges--
+        }
+        if (mOutgoing == null || mOutgoing.size === 0) {
+          processingQueue.push(indexedSeeds.get(mId) as AnySeedDef)
+        }
+      })
+    }
+  }
+
+  // Check for circular dependencies
+  if (unprocessedEdges !== 0) {
+    // Only report a single cycle for now
+    const cycle: Array<Id> = []
+
+    const seen: Set<Id> = new Set()
+    let id = remainingOutgoingEdges.keys().next().value as Id
+    while (!seen.has(id)) {
+      cycle.push(id)
+      seen.add(id)
+      const edges = remainingOutgoingEdges.get(id) as Set<Id>
+      id = edges.keys().next().value as Id
+    }
+    cycle.push(id)
+
+    return {code: "CIRCULAR_DEPENDENCY", cycle}
+  }
+
+  return queue
+}
+
+interface DAG {
+  readonly incomingEdges: Map<Id, Set<Id>>
+  readonly outgoingEdges: Map<Id, Set<Id>>
+  readonly edges: number
+
+  readonly indexedSeeds: Map<Id, AnySeedDef>
+}
+
+/**
+ * @returns A Directed Acyclic Graph of seeds
+ */
+function createDAG(seeds: Array<AnySeedDef>): DAG {
+  const incomingEdges = new Map<Id, Set<Id>>()
+  const outgoingEdges = new Map<Id, Set<Id>>()
+
+  const indexedSeeds = new Map<Id, AnySeedDef>()
+
+  let numEdges = 0
+
+  seeds.forEach((seed) => {
+    indexedSeeds.set(seed.id, seed)
+
+    if (
+      "dependsOn" in seed &&
+      typeof seed.dependsOn === "object" &&
+      seed.dependsOn != null
+    ) {
+      const depDefs = Object.values(seed.dependsOn) as Array<
+        SeedDef<unknown, unknown>
+      >
+
+      depDefs.forEach((d) => {
+        {
+          const edgeSet = incomingEdges.get(d.id)
+          if (edgeSet != null) {
+            edgeSet.add(seed.id)
+          } else {
+            incomingEdges.set(d.id, new Set([seed.id]))
+          }
+        }
+        {
+          const edgeSet = outgoingEdges.get(seed.id)
+          if (edgeSet != null) {
+            edgeSet.add(d.id)
+          } else {
+            outgoingEdges.set(seed.id, new Set([d.id]))
+          }
+        }
+        numEdges++
+      })
+    }
+  })
+
+  return {
+    incomingEdges,
+    outgoingEdges,
+    edges: numEdges,
+
+    indexedSeeds,
+  }
 }
 
 function findDuplicates(array: Array<Id>): Array<Id> {

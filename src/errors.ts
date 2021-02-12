@@ -29,20 +29,20 @@ function ErrorMessage(error: BalambErrorInfo): string {
 }
 
 export interface NonUniqueIds {
-  code: "NON_UNIQUE_IDS"
-  duplicates: Array<Id>
+  readonly code: "NON_UNIQUE_IDS"
+  readonly duplicates: Array<Id>
 }
 export interface CircularDependency {
-  code: "CIRCULAR_DEPENDENCY"
-  cycle: Array<Id>
+  readonly code: "CIRCULAR_DEPENDENCY"
+  readonly cycle: Array<Id>
 }
 export interface SeedFailures {
-  code: "SEED_FAILURES"
-  failures: Array<SeedFailure>
+  readonly code: "SEED_FAILURES"
+  readonly failures: Array<SeedFailure>
 }
 export interface SeedFailure {
-  id: Id
-  error: unknown
+  readonly id: Id
+  readonly error: unknown
 }
 
 export type BalambErrorInfo = NonUniqueIds | CircularDependency | SeedFailures
