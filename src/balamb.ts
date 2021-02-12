@@ -1,14 +1,14 @@
-import {BalambError, SeedFailure} from "./errors"
+import {RegistrationError, RunError, SeedFailure} from "./errors"
 import {BalambType, Id, RunResult, SeedDef, SeededGarden} from "./types"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySeedDef = SeedDef<unknown, any>
 
 export const Balamb: BalambType = {
-  register(seeds: Array<AnySeedDef>): SeededGarden | BalambError {
+  register(seeds: Array<AnySeedDef>): SeededGarden | RegistrationError {
     const duplicates = findDuplicates(seeds.map((seed) => seed.id))
     if (duplicates.length > 0) {
-      return new BalambError({code: "NON_UNIQUE_IDS", duplicates})
+      return new RegistrationError({code: "NON_UNIQUE_IDS", duplicates})
     }
 
     /*
@@ -128,13 +128,13 @@ export const Balamb: BalambType = {
       }
       cycle.push(id)
 
-      return new BalambError({code: "CIRCULAR_DEPENDENCY", cycle})
+      return new RegistrationError({code: "CIRCULAR_DEPENDENCY", cycle})
     }
 
     return {
       run: async (opts?: {
         concurrency: number
-      }): Promise<RunResult | BalambError> => {
+      }): Promise<RunResult | RunError> => {
         const {concurrency = 10} = opts ?? {}
         const limit =
           isFinite(concurrency) && concurrency >= 1
@@ -209,7 +209,7 @@ export const Balamb: BalambType = {
         })
 
         if (errors.length > 0) {
-          return new BalambError({code: "SEED_FAILURES", failures: errors})
+          return new RunError({code: "SEED_FAILURES", failures: errors})
         }
 
         return {

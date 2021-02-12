@@ -46,11 +46,30 @@ export interface SeedFailure {
 }
 
 export type BalambErrorInfo = NonUniqueIds | CircularDependency | SeedFailures
-
 expectType<TypeOf<ErrorCode, BalambErrorInfo["code"]>>(true)
 
 export class BalambError extends Error {
-  constructor(public info: BalambErrorInfo) {
+  constructor(public readonly info: BalambErrorInfo) {
     super(ErrorMessage(info))
+  }
+}
+
+export type RegistrationErrorInfo = NonUniqueIds | CircularDependency
+expectType<TypeOf<ErrorCode, RegistrationErrorInfo["code"]>>(true)
+expectType<TypeOf<BalambErrorInfo, RegistrationErrorInfo>>(true)
+
+export class RegistrationError extends BalambError {
+  constructor(public readonly info: RegistrationErrorInfo) {
+    super(info)
+  }
+}
+
+export type RunErrorInfo = SeedFailures
+expectType<TypeOf<ErrorCode, RunErrorInfo["code"]>>(true)
+expectType<TypeOf<BalambErrorInfo, RunErrorInfo>>(true)
+
+export class RunError extends BalambError {
+  constructor(public readonly info: RunErrorInfo) {
+    super(info)
   }
 }

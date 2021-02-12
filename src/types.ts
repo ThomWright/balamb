@@ -1,11 +1,11 @@
 import {ReadonlyDeep} from "type-fest"
-import {BalambError} from "./errors"
+import {RegistrationError, RunError} from "./errors"
 
 export type Id = string
 
 export interface BalambType {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  register(seeds: Array<SeedDef<any, any>>): SeededGarden | BalambError
+  register(seeds: Array<SeedDef<any, any>>): SeededGarden | RegistrationError
 }
 
 export type SeedDef<Result, Dependencies> = Readonly<
@@ -35,7 +35,7 @@ export interface SeededGarden {
 }
 
 export interface Run {
-  (opts?: {concurrency: number}): Promise<RunResult | BalambError>
+  (opts?: {concurrency: number}): Promise<RunResult | RunError>
 }
 
 export interface RunResult {
