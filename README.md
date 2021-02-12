@@ -7,8 +7,8 @@ This library was initially intended for data seeding, hence the name, which come
 ## To do list
 
 - [x] Concurrency
-- [ ] Error handling
-- [ ] Better error messaging
+- [x] Error handling
+- [x] Better error messaging
 - [ ] Tags (run only selected tags)
 - [ ] Save/load previously run IDs (can configure to only run new seeds)
 - [ ] Idempotency declaration (can be rerun every time, if configured)
