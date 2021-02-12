@@ -1,18 +1,14 @@
-import {
-  BalambError,
-  BalambType,
-  RunResult,
-  SeedDef,
-  SeededGarden,
-} from "./types"
+import {BalambError} from "./errors"
+import {BalambType, Id, RunResult, SeedDef, SeededGarden} from "./types"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySeedDef = SeedDef<unknown, any>
 
 export const Balamb: BalambType = {
   register(seeds: Array<AnySeedDef>): SeededGarden | BalambError {
-    if (containsDuplicates(seeds.map((seed) => seed.id))) {
-      return new BalambError("NON_UNIQUE_IDS")
+    const duplicates = findDuplicates(seeds.map((seed) => seed.id))
+    if (duplicates.length > 0) {
+      return new BalambError({code: "NON_UNIQUE_IDS", duplicates})
     }
 
     /*
@@ -21,22 +17,22 @@ export const Balamb: BalambType = {
 
     // Working area for nodes which have all dependencies already in queue
     // Initialise with nodes with no dependencies
-    const temp: Array<string> = []
+    const temp: Array<Id> = []
 
     // If we have any edges left over then we have a circular dependency
     let numEdges = 0
 
     // We will plant seeds in this order
-    const queue: Array<string> = []
+    const queue: Array<Id> = []
 
     /*
      * Initialise
      */
 
-    const incomingEdges = new Map<string, Set<string>>()
-    const outgoingEdges = new Map<string, Set<string>>()
+    const incomingEdges = new Map<Id, Set<Id>>()
+    const outgoingEdges = new Map<Id, Set<Id>>()
 
-    const indexedSeeds = new Map<string, AnySeedDef>()
+    const indexedSeeds = new Map<Id, AnySeedDef>()
 
     seeds.forEach((seed) => {
       indexedSeeds.set(seed.id, seed)
@@ -91,12 +87,12 @@ export const Balamb: BalambType = {
     //     if m has no other outgoing edges then
     //         insert m into temp
 
-    const remainingOutgoingEdges = new Map<string, Set<string>>()
+    const remainingOutgoingEdges = new Map<Id, Set<Id>>()
     outgoingEdges.forEach((v, k) => {
       remainingOutgoingEdges.set(k, new Set(v))
     })
     while (temp.length > 0) {
-      const nId = temp.pop() as string
+      const nId = temp.pop() as Id
       queue.push(nId)
       const nIncoming = incomingEdges.get(nId)
       if (nIncoming) {
@@ -104,6 +100,10 @@ export const Balamb: BalambType = {
           const mOutgoing = remainingOutgoingEdges.get(mId)
           if (mOutgoing != null) {
             mOutgoing.delete(nId)
+            if (mOutgoing.size === 0) {
+              // Clear up empty sets to make debugging easier
+              remainingOutgoingEdges.delete(mId)
+            }
             numEdges--
           }
           if (mOutgoing == null || mOutgoing.size === 0) {
@@ -113,23 +113,40 @@ export const Balamb: BalambType = {
       }
     }
 
+    // Check for circular dependencies
     if (numEdges !== 0) {
-      return new BalambError("CIRCULAR_DEPENDENCY")
+      // Only report a single cycle for now
+      const cycle: Array<Id> = []
+
+      const seen: Set<Id> = new Set()
+      let id = remainingOutgoingEdges.keys().next().value as Id
+      while (!seen.has(id)) {
+        cycle.push(id)
+        seen.add(id)
+        const edges = remainingOutgoingEdges.get(id) as Set<Id>
+        id = edges.keys().next().value as Id
+      }
+      cycle.push(id)
+
+      return new BalambError({code: "CIRCULAR_DEPENDENCY", cycle})
     }
 
     return {
-      run: async (opts?: {concurrency: number}): Promise<RunResult> => {
+      run: async (opts?: {
+        concurrency: number
+      }): Promise<RunResult | BalambError> => {
         const {concurrency = 10} = opts ?? {}
         const limit =
           isFinite(concurrency) && concurrency >= 1
             ? Math.min(concurrency, queue.length)
             : queue.length
 
+        const errors: Array<{id: Id; error: unknown}> = []
+        const resolved = new Set<Id>()
         let planted = 0
-        const resolved = new Set<string>()
 
         await new Promise<void>((resolve) => {
-          const resultsCache: Record<string, unknown> = {}
+          const resultsCache: Record<Id, unknown> = {}
 
           let index = 0
           let inFlight = 0
@@ -152,19 +169,31 @@ export const Balamb: BalambType = {
             inFlight++
 
             // eslint-disable-next-line @typescript-eslint/no-floating-promises
-            seed.plant(resultsCache).then((result) => {
-              resultsCache[seed.id] = result
+            seed
+              .plant(resultsCache)
+              .then((result) => {
+                resultsCache[seed.id] = result
 
-              planted++
-              inFlight--
-              resolved.add(seed.id)
+                planted++
+                inFlight--
+                resolved.add(seed.id)
 
-              if (inFlight < limit && index < queue.length) {
-                drainQueue()
-              } else if (planted === queue.length) {
-                resolve()
-              }
-            })
+                if (errors.length > 0) {
+                  if (inFlight === 0) {
+                    resolve()
+                  }
+                } else {
+                  if (inFlight < limit && index < queue.length) {
+                    drainQueue()
+                  } else if (planted === queue.length) {
+                    resolve()
+                  }
+                }
+              })
+              .catch((error: unknown) => {
+                errors.push({id, error})
+                inFlight--
+              })
             return true
           }
 
@@ -176,6 +205,10 @@ export const Balamb: BalambType = {
           }
         })
 
+        if (errors.length > 0) {
+          return new BalambError({code: "SEED_FAILURES", failures: errors})
+        }
+
         return {
           available: seeds.length,
           planted,
@@ -185,6 +218,13 @@ export const Balamb: BalambType = {
   },
 }
 
-function containsDuplicates<T>(array: Array<T>): boolean {
-  return new Set(array).size !== array.length
+function findDuplicates(array: Array<Id>): Array<Id> {
+  const sorted = array.slice().sort()
+  const results = []
+  for (let i = 0; i < sorted.length - 1; i++) {
+    if (sorted[i + 1] === sorted[i]) {
+      results.push(sorted[i])
+    }
+  }
+  return results
 }

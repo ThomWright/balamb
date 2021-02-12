@@ -1,14 +1,22 @@
 import {expect} from "chai"
 import "mocha"
 import {nextTick} from "process"
-import Balamb, {BalambError, SeedDef, SeededGarden} from "../../src"
-import {CreateAString} from "../fixtures/simple-app/seeds"
+import Balamb, {
+  BalambError,
+  RunResult,
+  SeedDef,
+  SeededGarden,
+  NonUniqueIds,
+  CircularDependency,
+  SeedFailures,
+} from "../../src"
+import {CreateAString, createBlank, Fail} from "../fixtures/simple-app/seeds"
 
 describe("A successful result", () => {
   it("should return the number of seeds available", async () => {
     const seeds = Balamb.register([CreateAString]) as SeededGarden
 
-    const result = await seeds.run()
+    const result = (await seeds.run()) as RunResult
 
     expect(result.available, "available").to.equal(1)
   })
@@ -16,7 +24,7 @@ describe("A successful result", () => {
   it("should return the number of seeds run", async () => {
     const seeds = Balamb.register([CreateAString]) as SeededGarden
 
-    const result = await seeds.run()
+    const result = (await seeds.run()) as RunResult
 
     expect(result.planted, "planted").to.equal(1)
   })
@@ -30,7 +38,9 @@ describe("Duplicate IDs", () => {
     ]) as BalambError
 
     expect(regResult).to.be.instanceOf(BalambError)
-    expect(regResult.code).to.equal("NON_UNIQUE_IDS")
+    expect(regResult.info.code).to.equal("NON_UNIQUE_IDS")
+    const info = regResult.info as NonUniqueIds
+    expect(info.duplicates).to.eql([CreateAString.id])
   })
 })
 
@@ -93,7 +103,7 @@ describe("Dependencies", () => {
 
     await seeds.run()
 
-    expect(result).to.eql("abc")
+    expect(result, "running order").to.eql("abc")
   })
 
   context("Circular dependencies", () => {
@@ -123,7 +133,9 @@ describe("Dependencies", () => {
       const regResult = Balamb.register([A, B]) as BalambError
 
       expect(regResult).to.be.instanceOf(BalambError)
-      expect(regResult.code).to.equal("CIRCULAR_DEPENDENCY")
+      expect(regResult.info.code).to.equal("CIRCULAR_DEPENDENCY")
+      const info = regResult.info as CircularDependency
+      expect(info.cycle).to.eql(["a", "b", "a"])
     })
   })
 })
@@ -186,7 +198,7 @@ describe("Seeds", () => {
         "a should happen before b",
       ).to.be.lessThan(plantOrder.indexOf("b"))
 
-      expect(plantOrder.indexOf("c")).to.be.greaterThan(-1)
+      expect(plantOrder.indexOf("c"), "c should happen").to.be.greaterThan(-1)
     })
   })
 })
@@ -255,7 +267,7 @@ describe("Concurrency", () => {
 
       await seeds.run({concurrency: 1})
 
-      expect(events).to.have.length(seedDefs.length * 2)
+      expect(events, "events").to.have.length(seedDefs.length * 2)
 
       checkConcurrency(events, {maxConcurrency: 1})
     })
@@ -285,17 +297,26 @@ describe("Concurrency", () => {
 
       await seeds.run({concurrency: 2})
 
-      expect(events).to.have.length(seedDefs.length * 2)
+      expect(events, "events").to.have.length(seedDefs.length * 2)
 
-      checkConcurrency(events, {maxConcurrency: 2})
+      const max = checkConcurrency(events, {maxConcurrency: 2})
+
+      // We should reach the maximum allowed concurrency
+      expect(max, "maximum witnessed concurrency").to.equal(2)
     })
   })
 })
 
+/**
+ * Check that the maximum concurrency wasn't exceeded.
+ *
+ * @returns the maximum concurrency seen.
+ */
 function checkConcurrency(
   events: Array<string>,
   {maxConcurrency}: {maxConcurrency: number},
-) {
+): number {
+  let max = 0
   const numUnclosed = events.reduce((totalUnclosed, parens) => {
     expect(parens).to.be.oneOf(["(", ")"])
     if (parens === "(") {
@@ -303,11 +324,37 @@ function checkConcurrency(
     } else if (parens === ")") {
       totalUnclosed--
     }
-    expect(totalUnclosed).to.be.at.most(maxConcurrency)
+    max = Math.max(max, totalUnclosed)
+    expect(totalUnclosed, "number of concurrently running tasks").to.be.at.most(
+      maxConcurrency,
+    )
     return totalUnclosed
   }, 0)
 
-  expect(numUnclosed).to.equal(0)
+  expect(numUnclosed, "number of unfinished tasks").to.equal(0)
+
+  return max
 }
 
-// TODO: test failures
+describe("Error handling", () => {
+  context("Failing seeds", () => {
+    it("should be reported", async () => {
+      const seeds = Balamb.register([
+        createBlank("a"),
+        Fail,
+        createBlank("b"),
+      ]) as SeededGarden
+
+      const result = (await seeds.run()) as BalambError
+
+      expect(result).to.be.instanceOf(BalambError)
+      expect(result.info.code).to.equal("SEED_FAILURES")
+      const info = result.info as SeedFailures
+      expect(info.failures.map((f) => f.id)).to.eql(["fail"])
+    })
+
+    it("should stop subsequent seeds running", () => {
+      // TODO:
+    })
+  })
+})

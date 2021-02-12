@@ -1,3 +1,4 @@
+import {nextTick} from "process"
 import {SeedDef} from "../../../src"
 
 export const CreateAString: SeedDef<string, void> = {
@@ -39,4 +40,26 @@ export const MultipleDeps: SeedDef<
   plant: async ({aString, someObject}) => {
     return aString.length + someObject.n
   },
+}
+
+export const Fail: SeedDef<number, void> = {
+  id: "fail",
+  description: "Throws an error",
+
+  plant: async () => {
+    throw new Error("oh no")
+  },
+}
+
+export const createBlank = (id: string): SeedDef<void, void> => {
+  return {
+    id,
+    description: id,
+
+    plant: async () => {
+      await new Promise<void>((resolve) => {
+        nextTick(() => resolve())
+      })
+    },
+  }
 }

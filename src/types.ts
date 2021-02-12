@@ -1,4 +1,7 @@
 import {ReadonlyDeep} from "type-fest"
+import {BalambError} from "./errors"
+
+export type Id = string
 
 export interface BalambType {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -7,7 +10,7 @@ export interface BalambType {
 
 export type SeedDef<Result, Dependencies> = Readonly<
   {
-    id: string
+    id: Id
     description: string
     tags?: ReadonlyArray<string>
     idempotent?: boolean
@@ -32,7 +35,7 @@ export interface SeededGarden {
 }
 
 export interface Run {
-  (opts?: {concurrency: number}): Promise<RunResult>
+  (opts?: {concurrency: number}): Promise<RunResult | BalambError>
 }
 
 export interface RunResult {
@@ -40,17 +43,6 @@ export interface RunResult {
   planted: number
 }
 
-export const ERROR_CODES = ["NON_UNIQUE_IDS", "CIRCULAR_DEPENDENCY"] as const
-export type ErrorCode = typeof ERROR_CODES[number]
-
-// TODO: Make these give more contextual information
-const ErrorMessages: Record<ErrorCode, string> = {
-  NON_UNIQUE_IDS: "Non-unique seed IDs found",
-  CIRCULAR_DEPENDENCY: "Circular dependency found",
-}
-
-export class BalambError extends Error {
-  constructor(public code: ErrorCode) {
-    super(ErrorMessages[code])
-  }
+export const assertNever = (_x: never): never => {
+  throw new Error("Should never be reached")
 }
