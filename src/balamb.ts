@@ -3,14 +3,25 @@ import {
   RunError,
   SeedFailure,
   CircularDependency,
+  BalambError,
 } from "./errors"
-import {BalambType, Id, RunResult, SeedDef, SeededGarden} from "./types"
+import {BalambType, Id, RunResult, SeedDef, SeedPlanter} from "./types"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySeedDef = SeedDef<unknown, any>
 
 export const Balamb: BalambType = {
-  register(seeds: Array<AnySeedDef>): SeededGarden | RegistrationError {
+  async run(seeds, opts) {
+    const planter = Balamb.register(seeds)
+
+    if (planter instanceof BalambError) {
+      return planter
+    }
+
+    return planter.run(opts)
+  },
+
+  register(seeds: Array<AnySeedDef>): SeedPlanter | RegistrationError {
     const duplicates = findDuplicates(seeds.map((seed) => seed.id))
     if (duplicates.length > 0) {
       return new RegistrationError({code: "NON_UNIQUE_IDS", duplicates})

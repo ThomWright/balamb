@@ -38,13 +38,11 @@ const CreateAnObj: SeedDef<{n: number}, {s: string}> = {
   }),
 }
 
-const seeds = Balamb.register([CreateAString, CreateAnObj])
+const results = await Balamb.run([CreateAString, CreateAnObj])
 
-if (seeds instanceof BalambError) {
+if (results instanceof BalambError) {
   throw new Error("oh no")
 }
-
-await seeds.run()
 ```
 
 ## Why is this useful?
@@ -113,15 +111,13 @@ Hopefully this illustrates the beginnings of what this might end up looking like
 Instead, we can write it like this, assuming the task definitions (seeds) and their dependencies have been written elsewhere:
 
 ```typescript
-const seeds = Balamb.register([
+await Balamb.run([
   Steve,
   StevesPost,
   Alan,
   AlansCommentToSteve,
   StevesReplyToAlan,
-]) as SeededGarden
-
-await seeds.run()
+])
 ```
 
 Done! This will run in a generally efficient way with no manual wiring.

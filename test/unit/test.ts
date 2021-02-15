@@ -5,7 +5,7 @@ import Balamb, {
   BalambError,
   RunResult,
   SeedDef,
-  SeededGarden,
+  SeedPlanter,
   NonUniqueIds,
   CircularDependency,
   SeedFailures,
@@ -14,17 +14,17 @@ import {CreateAString, createBlank, Fail} from "../fixtures/simple-app/seeds"
 
 describe("A successful result", () => {
   it("should return the number of seeds available", async () => {
-    const seeds = Balamb.register([CreateAString]) as SeededGarden
+    const planter = Balamb.register([CreateAString]) as SeedPlanter
 
-    const result = (await seeds.run()) as RunResult
+    const result = (await planter.run()) as RunResult
 
     expect(result.available, "available").to.equal(1)
   })
 
   it("should return the number of seeds run", async () => {
-    const seeds = Balamb.register([CreateAString]) as SeededGarden
+    const planter = Balamb.register([CreateAString]) as SeedPlanter
 
-    const result = (await seeds.run()) as RunResult
+    const result = (await planter.run()) as RunResult
 
     expect(result.planted, "planted").to.equal(1)
   })
@@ -66,9 +66,9 @@ describe("Dependencies", () => {
       },
     }
 
-    const seeds = Balamb.register([A, B]) as SeededGarden
+    const planter = Balamb.register([A, B]) as SeedPlanter
 
-    await seeds.run()
+    await planter.run()
 
     expect(plantOrder, "Order of planting").to.eql(["a", "b"])
   })
@@ -99,9 +99,9 @@ describe("Dependencies", () => {
       },
     }
 
-    const seeds = Balamb.register([A, B, C]) as SeededGarden
+    const planter = Balamb.register([A, B, C]) as SeedPlanter
 
-    await seeds.run()
+    await planter.run()
 
     expect(result, "running order").to.eql("abc")
   })
@@ -157,9 +157,9 @@ describe("Seeds", () => {
         plant = true
       },
     }
-    const seeds = Balamb.register([SetPlantToTrue]) as SeededGarden
+    const planter = Balamb.register([SetPlantToTrue]) as SeedPlanter
 
-    await seeds.run()
+    await planter.run()
 
     expect(plant, "Seed was planted").to.be.true
   })
@@ -195,9 +195,9 @@ describe("Seeds", () => {
         },
       }
 
-      const seeds = Balamb.register([A, B, C]) as SeededGarden
+      const planter = Balamb.register([A, B, C]) as SeedPlanter
 
-      await seeds.run()
+      await planter.run()
 
       expect(
         plantOrder.indexOf("a"),
@@ -243,9 +243,9 @@ describe("Concurrency", () => {
         },
       }
 
-      const seeds = Balamb.register([A, B]) as SeededGarden
+      const planter = Balamb.register([A, B]) as SeedPlanter
 
-      await seeds.run()
+      await planter.run()
     })
   })
 
@@ -269,9 +269,9 @@ describe("Concurrency", () => {
         },
       )
 
-      const seeds = Balamb.register(seedDefs) as SeededGarden
+      const planter = Balamb.register(seedDefs) as SeedPlanter
 
-      await seeds.run({concurrency: 1})
+      await planter.run({concurrency: 1})
 
       expect(events, "events").to.have.length(seedDefs.length * 2)
 
@@ -299,9 +299,9 @@ describe("Concurrency", () => {
         },
       )
 
-      const seeds = Balamb.register(seedDefs) as SeededGarden
+      const planter = Balamb.register(seedDefs) as SeedPlanter
 
-      await seeds.run({concurrency: 2})
+      await planter.run({concurrency: 2})
 
       expect(events, "events").to.have.length(seedDefs.length * 2)
 
@@ -345,13 +345,13 @@ function checkConcurrency(
 describe("Error handling", () => {
   context("Failing seeds", () => {
     it("should be reported", async () => {
-      const seeds = Balamb.register([
+      const planter = Balamb.register([
         createBlank("a"),
         Fail,
         createBlank("b"),
-      ]) as SeededGarden
+      ]) as SeedPlanter
 
-      const result = (await seeds.run()) as BalambError
+      const result = (await planter.run()) as BalambError
 
       expect(result).to.be.instanceOf(BalambError)
       expect(result.info.code).to.equal("SEED_FAILURES")
@@ -361,7 +361,7 @@ describe("Error handling", () => {
 
     it("should stop subsequent seeds running", async () => {
       let didRun = false
-      const seeds = Balamb.register([
+      const planter = Balamb.register([
         Fail,
         {
           id: "depends-on-fail",
@@ -375,16 +375,16 @@ describe("Error handling", () => {
             didRun = true
           },
         },
-      ]) as SeededGarden
+      ]) as SeedPlanter
 
-      await seeds.run()
+      await planter.run()
 
       expect(didRun, "dependency did run").to.be.false
     })
 
     it("should let currently running seeds finish", async () => {
       let didFinish = false
-      const seeds = Balamb.register([
+      const planter = Balamb.register([
         Fail,
         {
           id: "not-fail",
@@ -399,9 +399,9 @@ describe("Error handling", () => {
             })
           },
         },
-      ]) as SeededGarden
+      ]) as SeedPlanter
 
-      await seeds.run()
+      await planter.run()
 
       expect(didFinish, "other seed did finish").to.be.true
     })
