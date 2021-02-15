@@ -1,9 +1,13 @@
 /* eslint-disable no-console */
 import Balamb, {BalambError} from "../../../src"
-import {CreateAnObj, CreateAString, MultipleDeps} from "./seeds"
+import {CreateAnObjFromString, CreateAString, MultipleDeps} from "./seeds"
 
 async function testApp() {
-  const seeds = Balamb.register([CreateAString, CreateAnObj, MultipleDeps])
+  const seeds = Balamb.register([
+    CreateAString,
+    CreateAnObjFromString,
+    MultipleDeps,
+  ])
 
   if (seeds instanceof BalambError) {
     throw new Error("oh no")

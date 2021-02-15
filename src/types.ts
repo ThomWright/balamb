@@ -1,5 +1,5 @@
 import {ReadonlyDeep} from "type-fest"
-import {BalambError, RegistrationError, RunError} from "./errors"
+import {BalambError, BalambRegistrationError, BalambRunError} from "./errors"
 
 export type Id = string
 
@@ -20,8 +20,10 @@ export interface BalambType {
    *
    * Must not contain duplicate IDs, or define circular dependencies.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  register(seeds: Array<SeedDef<any, any>>): SeedPlanter | RegistrationError
+  register(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    seeds: Array<SeedDef<any, any>>,
+  ): SeedPlanter | BalambRegistrationError
 }
 
 /**
@@ -66,7 +68,7 @@ export interface SeedPlanter {
   /**
    * Plant the seeds, concurrently, in dependency order.
    */
-  run(opts?: {concurrency: number}): Promise<RunResult | RunError>
+  run(opts?: {concurrency: number}): Promise<RunResult | BalambRunError>
 }
 
 export interface RunResult {

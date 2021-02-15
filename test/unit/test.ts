@@ -9,8 +9,15 @@ import Balamb, {
   NonUniqueIds,
   CircularDependency,
   SeedFailures,
+  BalambRegistrationError,
+  DanglingDependency,
 } from "../../src"
-import {CreateAString, createBlank, Fail} from "../fixtures/simple-app/seeds"
+import {
+  CreateAString,
+  createBlank,
+  Fail,
+  CreateAnObjFromString,
+} from "../fixtures/simple-app/seeds"
 
 describe("A successful result", () => {
   it("should return the results of the seeds which were run", async () => {
@@ -30,7 +37,7 @@ describe("Duplicate IDs", () => {
     ]) as BalambError
 
     expect(regResult).to.be.instanceOf(BalambError)
-    expect(regResult.info.code).to.equal("NON_UNIQUE_IDS")
+    expect(regResult.info.errorCode).to.equal("NON_UNIQUE_IDS")
     const info = regResult.info as NonUniqueIds
     expect(info.duplicates).to.eql([CreateAString.id])
   })
@@ -125,15 +132,24 @@ describe("Dependencies", () => {
       const regResult = Balamb.register([A, B]) as BalambError
 
       expect(regResult).to.be.instanceOf(BalambError)
-      expect(regResult.info.code).to.equal("CIRCULAR_DEPENDENCY")
+      expect(regResult.info.errorCode).to.equal("CIRCULAR_DEPENDENCY")
       const info = regResult.info as CircularDependency
       expect(info.cycle).to.eql(["a", "b", "a"])
     })
   })
 
   context("Missing dependencies", () => {
-    it.skip("should ...", async () => {
-      // TODO: missing dependencies!
+    it("should be rejected", async () => {
+      const regResult = Balamb.register([
+        CreateAnObjFromString,
+      ]) as BalambRegistrationError
+
+      expect(regResult).to.be.instanceOf(BalambError)
+      expect(regResult.info.errorCode).to.equal("DANGLING_DEPENDENCY")
+      const info = regResult.info as DanglingDependency
+      expect(info.danglingDependencies).to.eql([
+        [CreateAnObjFromString.id, CreateAString.id],
+      ])
     })
   })
 })
@@ -346,7 +362,7 @@ describe("Error handling", () => {
       const result = (await planter.run()) as BalambError
 
       expect(result).to.be.instanceOf(BalambError)
-      expect(result.info.code).to.equal("SEED_FAILURES")
+      expect(result.info.errorCode).to.equal("SEED_FAILURES")
       const info = result.info as SeedFailures
       expect(info.failures.map((f) => f.id)).to.eql([Fail.id])
     })

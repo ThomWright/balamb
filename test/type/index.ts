@@ -1,7 +1,10 @@
 import {expectType, TypeEqual, TypeOf} from "ts-expect"
 import {PromiseValue, ReadonlyDeep} from "type-fest"
 import {SeedDef, SeedRunner} from "../../src"
-import {CreateAnObj, CreateAString} from "../fixtures/simple-app/seeds"
+import {
+  CreateAnObjFromString,
+  CreateAString,
+} from "../fixtures/simple-app/seeds"
 
 /*
  * General
@@ -45,10 +48,10 @@ expectType<TypeEqual<unknown, typeof CreateAString.dependsOn>>(true)
 expectType<SeedRunner<string, void>>(CreateAString.plant)
 expectType<TypeEqual<[unknown], Parameters<typeof CreateAString.plant>>>(true)
 
-expectType<{s: typeof CreateAString}>(CreateAnObj.dependsOn)
+expectType<{s: typeof CreateAString}>(CreateAnObjFromString.dependsOn)
 expectType<
   TypeEqual<
     [{s: PromiseValue<ReturnType<typeof CreateAString.plant>>}],
-    Parameters<typeof CreateAnObj.plant>
+    Parameters<typeof CreateAnObjFromString.plant>
   >
 >(true)

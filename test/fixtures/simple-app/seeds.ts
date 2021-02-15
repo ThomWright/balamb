@@ -9,16 +9,16 @@ export const CreateAString: SeedDef<string, void> = {
 }
 
 interface AnObj {
-  n: number
+  s: string
 }
-export const CreateAnObj: SeedDef<AnObj, {s: string}> = {
+export const CreateAnObjFromString: SeedDef<AnObj, {s: string}> = {
   id: "an_object",
   description: "Just returns an object, based on its dependency",
 
   dependsOn: {s: CreateAString},
 
   plant: async ({s}) => ({
-    n: s.length,
+    s,
   }),
 }
 
@@ -34,11 +34,11 @@ export const MultipleDeps: SeedDef<
 
   dependsOn: {
     aString: CreateAString,
-    someObject: CreateAnObj,
+    someObject: CreateAnObjFromString,
   },
 
   plant: async ({aString, someObject}) => {
-    return aString.length + someObject.n
+    return aString.length + someObject.s.length
   },
 }
 

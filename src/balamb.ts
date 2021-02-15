@@ -1,9 +1,10 @@
 import {
-  RegistrationError,
-  RunError,
+  BalambRegistrationError,
+  BalambRunError,
   SeedFailure,
   CircularDependency,
   BalambError,
+  DanglingDependency,
 } from "./errors"
 import {BalambType, Id, RunResult, SeedDef, SeedPlanter} from "./types"
 
@@ -21,18 +22,24 @@ export const Balamb: BalambType = {
     return planter.run(opts)
   },
 
-  register(seeds: Array<AnySeedDef>): SeedPlanter | RegistrationError {
+  register(seeds: Array<AnySeedDef>): SeedPlanter | BalambRegistrationError {
     const duplicates = findDuplicates(seeds.map((seed) => seed.id))
     if (duplicates.length > 0) {
-      return new RegistrationError({code: "NON_UNIQUE_IDS", duplicates})
+      return new BalambRegistrationError({
+        errorCode: "NON_UNIQUE_IDS",
+        duplicates,
+      })
     }
 
     const graph = createDAG(seeds)
+    if ("errorCode" in graph) {
+      return new BalambRegistrationError(graph)
+    }
 
     const result = sort(seeds, graph)
 
-    if ("code" in result) {
-      return new RegistrationError(result)
+    if ("errorCode" in result) {
+      return new BalambRegistrationError(result)
     }
 
     const queue = result
@@ -42,7 +49,7 @@ export const Balamb: BalambType = {
     return {
       run: async (opts?: {
         concurrency: number
-      }): Promise<RunResult | RunError> => {
+      }): Promise<RunResult | BalambRunError> => {
         const {concurrency = 10} = opts ?? {}
         const concurrencyLimit =
           isFinite(concurrency) && concurrency >= 1
@@ -59,7 +66,7 @@ export const Balamb: BalambType = {
         )
 
         if (failures.length > 0) {
-          return new RunError({code: "SEED_FAILURES", failures})
+          return new BalambRunError({errorCode: "SEED_FAILURES", failures})
         }
 
         return {
@@ -228,7 +235,7 @@ function sort(
     }
     cycle.push(id)
 
-    return {code: "CIRCULAR_DEPENDENCY", cycle}
+    return {errorCode: "CIRCULAR_DEPENDENCY", cycle}
   }
 
   return queue
@@ -245,7 +252,7 @@ interface DAG {
 /**
  * @returns A Directed Acyclic Graph of seeds
  */
-function createDAG(seeds: Array<AnySeedDef>): DAG {
+function createDAG(seeds: Array<AnySeedDef>): DAG | DanglingDependency {
   const incomingEdges = new Map<Id, Set<Id>>()
   const outgoingEdges = new Map<Id, Set<Id>>()
 
@@ -253,9 +260,13 @@ function createDAG(seeds: Array<AnySeedDef>): DAG {
 
   let numEdges = 0
 
+  const danglingDependencies: Array<[Id, Id]> = []
+
   seeds.forEach((seed) => {
     indexedSeeds.set(seed.id, seed)
+  })
 
+  seeds.forEach((seed) => {
     if (
       "dependsOn" in seed &&
       typeof seed.dependsOn === "object" &&
@@ -266,6 +277,10 @@ function createDAG(seeds: Array<AnySeedDef>): DAG {
       >
 
       depDefs.forEach((d) => {
+        if (!indexedSeeds.has(d.id)) {
+          danglingDependencies.push([seed.id, d.id])
+          return
+        }
         {
           const edgeSet = incomingEdges.get(d.id)
           if (edgeSet != null) {
@@ -286,6 +301,10 @@ function createDAG(seeds: Array<AnySeedDef>): DAG {
       })
     }
   })
+
+  if (danglingDependencies.length > 0) {
+    return {errorCode: "DANGLING_DEPENDENCY", danglingDependencies}
+  }
 
   return {
     incomingEdges,
