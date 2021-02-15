@@ -6,6 +6,7 @@ export type Id = string
 export interface BalambType {
   /**
    * Plant the seeds, concurrently, in dependency order.
+   *
    * Must not contain duplicate IDs, or define circular dependencies.
    */
   run(
@@ -69,8 +70,7 @@ export interface SeedPlanter {
 }
 
 export interface RunResult {
-  readonly available: number
-  readonly planted: number
+  readonly results: Record<Id, unknown>
 }
 
 export const assertNever = (_x: never): never => {

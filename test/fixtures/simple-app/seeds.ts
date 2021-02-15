@@ -5,7 +5,7 @@ export const CreateAString: SeedDef<string, void> = {
   id: "a_string",
   description: "Just returns a string",
 
-  plant: async () => "thing",
+  plant: async () => "a string",
 }
 
 interface AnObj {

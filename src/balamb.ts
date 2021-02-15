@@ -51,7 +51,7 @@ export const Balamb: BalambType = {
 
         const failures: Array<SeedFailure> = []
 
-        await processQueue(
+        const results = await processQueue(
           queue,
           outgoingEdges,
           {concurrencyLimit},
@@ -63,23 +63,21 @@ export const Balamb: BalambType = {
         }
 
         return {
-          available: seeds.length,
-          planted: queue.length,
+          results,
         }
       },
     }
   },
 }
 
-function processQueue(
+async function processQueue(
   queue: Array<AnySeedDef>,
   outgoingEdges: Map<Id, Set<Id>>,
   {concurrencyLimit}: {concurrencyLimit: number},
   onError: (error: SeedFailure) => void,
-) {
-  return new Promise<void>((finishedProcessing) => {
-    const resultsCache: Record<Id, unknown> = {}
-
+): Promise<Record<Id, unknown>> {
+  const resultsCache: Record<Id, unknown> = {}
+  await new Promise<void>((finishedProcessing) => {
     // Kinda superfluous, but nicer to use
     const resolved = new Set<Id>()
 
@@ -147,6 +145,7 @@ function processQueue(
       }
     }
   })
+  return resultsCache
 }
 
 /**
@@ -154,7 +153,7 @@ function processQueue(
  */
 function sort(
   seeds: Array<AnySeedDef>,
-  {incomingEdges, outgoingEdges, indexedSeeds, edges}: DAG,
+  {incomingEdges, outgoingEdges, indexedSeeds, numEdges}: DAG,
 ): Array<AnySeedDef> | CircularDependency {
   /*
    * Initialise
@@ -163,7 +162,7 @@ function sort(
   const processingQueue: Array<AnySeedDef> = []
 
   /** If we end up with any edges left over then we have a circular dependency */
-  let unprocessedEdges = edges
+  let unprocessedEdges = numEdges
 
   /** Sorted queue - we will plant seeds in this order */
   const queue: Array<AnySeedDef> = []
@@ -238,7 +237,7 @@ function sort(
 interface DAG {
   readonly incomingEdges: Map<Id, Set<Id>>
   readonly outgoingEdges: Map<Id, Set<Id>>
-  readonly edges: number
+  readonly numEdges: number
 
   readonly indexedSeeds: Map<Id, AnySeedDef>
 }
@@ -291,7 +290,7 @@ function createDAG(seeds: Array<AnySeedDef>): DAG {
   return {
     incomingEdges,
     outgoingEdges,
-    edges: numEdges,
+    numEdges,
 
     indexedSeeds,
   }

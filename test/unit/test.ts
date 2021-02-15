@@ -13,20 +13,12 @@ import Balamb, {
 import {CreateAString, createBlank, Fail} from "../fixtures/simple-app/seeds"
 
 describe("A successful result", () => {
-  it("should return the number of seeds available", async () => {
+  it("should return the results of the seeds which were run", async () => {
     const planter = Balamb.register([CreateAString]) as SeedPlanter
 
     const result = (await planter.run()) as RunResult
 
-    expect(result.available, "available").to.equal(1)
-  })
-
-  it("should return the number of seeds run", async () => {
-    const planter = Balamb.register([CreateAString]) as SeedPlanter
-
-    const result = (await planter.run()) as RunResult
-
-    expect(result.planted, "planted").to.equal(1)
+    expect(result.results, "results").to.eql({[CreateAString.id]: "a string"})
   })
 })
 
