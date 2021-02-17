@@ -19,7 +19,7 @@ function ErrorMessage(error: BalambErrorInfo): string {
 
     case "DANGLING_DEPENDENCY":
       return (
-        "Dangling dependency found: " +
+        "A dependency on an unknown seed definition found: " +
         error.danglingDependencies
           .map(([from, to]) => `${from} -> ${to}`)
           .join(", ")
