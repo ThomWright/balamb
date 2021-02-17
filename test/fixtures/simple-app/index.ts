@@ -3,19 +3,17 @@ import Balamb, {BalambError} from "../../../src"
 import {CreateAnObjFromString, CreateAString, MultipleDeps} from "./seeds"
 
 async function testApp() {
-  const seeds = Balamb.register([
+  const results = Balamb.run([
     CreateAString,
     CreateAnObjFromString,
     MultipleDeps,
   ])
 
-  if (seeds instanceof BalambError) {
+  if (results instanceof BalambError) {
     throw new Error("oh no")
   }
 
-  const result = await seeds.run()
-
-  console.log(result)
+  console.log(results)
 }
 
 testApp().catch((e) => {

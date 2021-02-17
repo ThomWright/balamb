@@ -1,19 +1,17 @@
 import {
-  BalambRegistrationError,
-  BalambRunError,
-  SeedFailure,
-  CircularDependency,
   BalambError,
+  CircularDependency,
   DanglingDependency,
+  SeedFailure,
 } from "./errors"
-import {BalambType, Id, RunResult, SeedDef, SeedPlanter} from "./types"
+import {BalambType, Id, BalambResult, SeedDef} from "./types"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySeedDef = SeedDef<unknown, any>
 
 export const Balamb: BalambType = {
   async run(seeds, opts) {
-    const planter = Balamb.register(seeds)
+    const planter = prepare(seeds)
 
     if (planter instanceof BalambError) {
       return planter
@@ -21,60 +19,70 @@ export const Balamb: BalambType = {
 
     return planter.run(opts)
   },
+}
 
-  register(seeds: Array<AnySeedDef>): SeedPlanter | BalambRegistrationError {
-    const duplicates = findDuplicates(seeds.map((seed) => seed.id))
-    if (duplicates.length > 0) {
-      return new BalambRegistrationError({
-        errorCode: "NON_UNIQUE_IDS",
-        duplicates,
-      })
-    }
+/**
+ * Seeds ready for planting.
+ */
+interface SeedPlanter {
+  run(opts?: {concurrency: number}): Promise<BalambResult | BalambError>
+}
+function prepare(seeds: Array<AnySeedDef>): SeedPlanter | BalambError {
+  const duplicates = findDuplicates(seeds.map((seed) => seed.id))
+  if (duplicates.length > 0) {
+    return new BalambError({
+      errorCode: "NON_UNIQUE_IDS",
+      duplicates,
+    })
+  }
 
-    const graph = createDAG(seeds)
-    if ("errorCode" in graph) {
-      return new BalambRegistrationError(graph)
-    }
+  const graph = createDAG(seeds)
+  if ("errorCode" in graph) {
+    return new BalambError(graph)
+  }
 
-    const result = sort(seeds, graph)
+  const result = sort(seeds, graph)
 
-    if ("errorCode" in result) {
-      return new BalambRegistrationError(result)
-    }
+  if ("errorCode" in result) {
+    return new BalambError(result)
+  }
 
-    const queue = result
+  const queue = result
 
-    const {outgoingEdges} = graph
+  const {outgoingEdges} = graph
 
-    return {
-      run: async (opts?: {
-        concurrency: number
-      }): Promise<RunResult | BalambRunError> => {
-        const {concurrency = 10} = opts ?? {}
-        const concurrencyLimit =
-          isFinite(concurrency) && concurrency >= 1
-            ? Math.min(concurrency, queue.length)
-            : queue.length
+  return {
+    run: async (opts?: {
+      concurrency: number
+    }): Promise<BalambResult | BalambError> => {
+      const {concurrency = 10} = opts ?? {}
+      const concurrencyLimit =
+        isFinite(concurrency) && concurrency >= 1
+          ? Math.min(concurrency, queue.length)
+          : queue.length
 
-        const failures: Array<SeedFailure> = []
+      const failures: Array<SeedFailure> = []
 
-        const results = await processQueue(
-          queue,
-          outgoingEdges,
-          {concurrencyLimit},
-          (failure) => failures.push(failure),
-        )
+      const results = await processQueue(
+        queue,
+        outgoingEdges,
+        {concurrencyLimit},
+        (failure) => failures.push(failure),
+      )
 
-        if (failures.length > 0) {
-          return new BalambRunError({errorCode: "SEED_FAILURES", failures})
-        }
+      if (failures.length > 0) {
+        return new BalambError({
+          errorCode: "SEED_FAILURES",
+          failures,
+          partialResults: results,
+        })
+      }
 
-        return {
-          results,
-        }
-      },
-    }
-  },
+      return {
+        results,
+      }
+    },
+  }
 }
 
 async function processQueue(

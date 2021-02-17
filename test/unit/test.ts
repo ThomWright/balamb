@@ -3,42 +3,38 @@ import "mocha"
 import {nextTick} from "process"
 import Balamb, {
   BalambError,
-  RunResult,
-  SeedDef,
-  SeedPlanter,
-  NonUniqueIds,
   CircularDependency,
-  SeedFailures,
-  BalambRegistrationError,
   DanglingDependency,
+  NonUniqueIds,
+  BalambResult,
+  SeedDef,
+  SeedFailures,
 } from "../../src"
 import {
+  CreateAnObjFromString,
   CreateAString,
   createBlank,
   Fail,
-  CreateAnObjFromString,
 } from "../fixtures/simple-app/seeds"
 
 describe("A successful result", () => {
   it("should return the results of the seeds which were run", async () => {
-    const planter = Balamb.register([CreateAString]) as SeedPlanter
-
-    const result = (await planter.run()) as RunResult
+    const result = (await Balamb.run([CreateAString])) as BalambResult
 
     expect(result.results, "results").to.eql({[CreateAString.id]: "a string"})
   })
 })
 
 describe("Duplicate IDs", () => {
-  it("should be detected and result in an error", () => {
-    const regResult = Balamb.register([
+  it("should be detected and result in an error", async () => {
+    const result = (await Balamb.run([
       CreateAString,
       CreateAString,
-    ]) as BalambError
+    ])) as BalambError
 
-    expect(regResult).to.be.instanceOf(BalambError)
-    expect(regResult.info.errorCode).to.equal("NON_UNIQUE_IDS")
-    const info = regResult.info as NonUniqueIds
+    expect(result).to.be.instanceOf(BalambError)
+    expect(result.info.errorCode).to.equal("NON_UNIQUE_IDS")
+    const info = result.info as NonUniqueIds
     expect(info.duplicates).to.eql([CreateAString.id])
   })
 })
@@ -65,9 +61,7 @@ describe("Dependencies", () => {
       },
     }
 
-    const planter = Balamb.register([A, B]) as SeedPlanter
-
-    await planter.run()
+    await Balamb.run([A, B])
 
     expect(plantOrder, "Order of planting").to.eql(["a", "b"])
   })
@@ -98,9 +92,7 @@ describe("Dependencies", () => {
       },
     }
 
-    const planter = Balamb.register([A, B, C]) as SeedPlanter
-
-    await planter.run()
+    await Balamb.run([A, B, C])
 
     expect(result, "running order").to.eql("abc")
   })
@@ -129,24 +121,22 @@ describe("Dependencies", () => {
         dependsOn: {a: A},
       }
 
-      const regResult = Balamb.register([A, B]) as BalambError
+      const result = (await Balamb.run([A, B])) as BalambError
 
-      expect(regResult).to.be.instanceOf(BalambError)
-      expect(regResult.info.errorCode).to.equal("CIRCULAR_DEPENDENCY")
-      const info = regResult.info as CircularDependency
+      expect(result).to.be.instanceOf(BalambError)
+      expect(result.info.errorCode).to.equal("CIRCULAR_DEPENDENCY")
+      const info = result.info as CircularDependency
       expect(info.cycle).to.eql(["a", "b", "a"])
     })
   })
 
   context("Missing dependencies", () => {
     it("should be rejected", async () => {
-      const regResult = Balamb.register([
-        CreateAnObjFromString,
-      ]) as BalambRegistrationError
+      const result = (await Balamb.run([CreateAnObjFromString])) as BalambError
 
-      expect(regResult).to.be.instanceOf(BalambError)
-      expect(regResult.info.errorCode).to.equal("DANGLING_DEPENDENCY")
-      const info = regResult.info as DanglingDependency
+      expect(result).to.be.instanceOf(BalambError)
+      expect(result.info.errorCode).to.equal("DANGLING_DEPENDENCY")
+      const info = result.info as DanglingDependency
       expect(info.danglingDependencies).to.eql([
         [CreateAnObjFromString.id, CreateAString.id],
       ])
@@ -165,9 +155,8 @@ describe("Seeds", () => {
         plant = true
       },
     }
-    const planter = Balamb.register([SetPlantToTrue]) as SeedPlanter
 
-    await planter.run()
+    await Balamb.run([SetPlantToTrue])
 
     expect(plant, "Seed was planted").to.be.true
   })
@@ -203,9 +192,7 @@ describe("Seeds", () => {
         },
       }
 
-      const planter = Balamb.register([A, B, C]) as SeedPlanter
-
-      await planter.run()
+      await Balamb.run([A, B, C])
 
       expect(
         plantOrder.indexOf("a"),
@@ -251,9 +238,7 @@ describe("Concurrency", () => {
         },
       }
 
-      const planter = Balamb.register([A, B]) as SeedPlanter
-
-      await planter.run()
+      await Balamb.run([A, B])
     })
   })
 
@@ -277,9 +262,7 @@ describe("Concurrency", () => {
         },
       )
 
-      const planter = Balamb.register(seedDefs) as SeedPlanter
-
-      await planter.run({concurrency: 1})
+      await Balamb.run(seedDefs, {concurrency: 1})
 
       expect(events, "events").to.have.length(seedDefs.length * 2)
 
@@ -307,9 +290,7 @@ describe("Concurrency", () => {
         },
       )
 
-      const planter = Balamb.register(seedDefs) as SeedPlanter
-
-      await planter.run({concurrency: 2})
+      await Balamb.run(seedDefs, {concurrency: 2})
 
       expect(events, "events").to.have.length(seedDefs.length * 2)
 
@@ -353,13 +334,11 @@ function checkConcurrency(
 describe("Error handling", () => {
   context("Failing seeds", () => {
     it("should be reported", async () => {
-      const planter = Balamb.register([
+      const result = (await Balamb.run([
         createBlank("a"),
         Fail,
         createBlank("b"),
-      ]) as SeedPlanter
-
-      const result = (await planter.run()) as BalambError
+      ])) as BalambError
 
       expect(result).to.be.instanceOf(BalambError)
       expect(result.info.errorCode).to.equal("SEED_FAILURES")
@@ -369,7 +348,8 @@ describe("Error handling", () => {
 
     it("should stop subsequent seeds running", async () => {
       let didRun = false
-      const planter = Balamb.register([
+
+      await Balamb.run([
         Fail,
         {
           id: "depends-on-fail",
@@ -383,16 +363,15 @@ describe("Error handling", () => {
             didRun = true
           },
         },
-      ]) as SeedPlanter
-
-      await planter.run()
+      ])
 
       expect(didRun, "dependency did run").to.be.false
     })
 
     it("should let currently running seeds finish", async () => {
       let didFinish = false
-      const planter = Balamb.register([
+
+      await Balamb.run([
         Fail,
         {
           id: "not-fail",
@@ -407,9 +386,7 @@ describe("Error handling", () => {
             })
           },
         },
-      ]) as SeedPlanter
-
-      await planter.run()
+      ])
 
       expect(didFinish, "other seed did finish").to.be.true
     })

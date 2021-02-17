@@ -52,6 +52,7 @@ export interface DanglingDependency {
 export interface SeedFailures {
   readonly errorCode: "SEED_FAILURES"
   readonly failures: Array<SeedFailure>
+  readonly partialResults: Record<Id, unknown>
 }
 export interface SeedFailure {
   readonly id: Id
@@ -68,28 +69,5 @@ expectType<TypeOf<ErrorCode, BalambErrorInfo["errorCode"]>>(true)
 export class BalambError extends Error {
   constructor(public readonly info: BalambErrorInfo) {
     super(ErrorMessage(info))
-  }
-}
-
-export type RegistrationErrorInfo =
-  | NonUniqueIds
-  | CircularDependency
-  | DanglingDependency
-expectType<TypeOf<ErrorCode, RegistrationErrorInfo["errorCode"]>>(true)
-expectType<TypeOf<BalambErrorInfo, RegistrationErrorInfo>>(true)
-
-export class BalambRegistrationError extends BalambError {
-  constructor(public readonly info: RegistrationErrorInfo) {
-    super(info)
-  }
-}
-
-export type RunErrorInfo = SeedFailures
-expectType<TypeOf<ErrorCode, RunErrorInfo["errorCode"]>>(true)
-expectType<TypeOf<BalambErrorInfo, RunErrorInfo>>(true)
-
-export class BalambRunError extends BalambError {
-  constructor(public readonly info: RunErrorInfo) {
-    super(info)
   }
 }
