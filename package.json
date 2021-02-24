@@ -1,6 +1,6 @@
 {
   "name": "balamb",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "author": "Thom Wright",
   "description": "Seeding data using DAGs",
   "keywords": [
