@@ -92,6 +92,7 @@ async function processQueue(
   onError: (error: SeedFailure) => void,
 ): Promise<Record<Id, unknown>> {
   const resultsCache: Record<Id, unknown> = {}
+
   await new Promise<void>((finishedProcessing) => {
     // Kinda superfluous, but nicer to use
     const resolved = new Set<Id>()
@@ -122,9 +123,20 @@ async function processQueue(
       nextItemIndex++
       inFlight++
 
+      // Map named dependency declarations to the results of those dependencies
+      const dependencies =
+        "dependsOn" in seed &&
+        typeof seed.dependsOn === "object" &&
+        seed.dependsOn != null
+          ? mapObjIndexed(
+              (depSeed) => resultsCache[(depSeed as AnySeedDef).id],
+              seed.dependsOn,
+            )
+          : undefined
+
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       seed
-        .plant(resultsCache)
+        .plant(dependencies)
         .then((result) => {
           inFlight--
 
@@ -332,4 +344,14 @@ function findDuplicates(array: Array<Id>): Array<Id> {
     }
   }
   return results
+}
+
+function mapObjIndexed<T, TResult, TKey extends string>(
+  fn: (value: T, key: TKey, obj?: Record<TKey, T>) => TResult,
+  obj: Record<TKey, T>,
+): Record<TKey, TResult> {
+  return Object.keys(obj).reduce<Record<TKey, TResult>>(function (acc, key) {
+    acc[key as TKey] = fn(obj[key as TKey], key as TKey, obj)
+    return acc
+  }, {} as Record<TKey, TResult>)
 }

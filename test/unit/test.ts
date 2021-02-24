@@ -75,19 +75,19 @@ describe("Dependencies", () => {
 
       plant: async () => "a",
     }
-    const B: SeedDef<string, {a: string}> = {
+    const B: SeedDef<string, {resultOfA: string}> = {
       id: "b",
       description: "b",
-      dependsOn: {a: A},
+      dependsOn: {resultOfA: A},
 
-      plant: async ({a}) => a + "b",
+      plant: async ({resultOfA: a}) => a + "b",
     }
-    const C: SeedDef<void, {b: string}> = {
+    const C: SeedDef<void, {resultOfB: string}> = {
       id: "c",
       description: "c",
-      dependsOn: {b: B},
+      dependsOn: {resultOfB: B},
 
-      plant: async ({b}) => {
+      plant: async ({resultOfB: b}) => {
         result = b + "c"
       },
     }
