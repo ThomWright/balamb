@@ -13,11 +13,11 @@ import {
 // dependsOn
 expectType<TypeEqual<unknown, SeedDef<unknown, void>["dependsOn"]>>(true)
 expectType<
-  TypeEqual<
-    SeedDef<unknown, {x: string}>["dependsOn"],
-    {x: SeedDef<string, void>}
-  >
+  TypeOf<SeedDef<unknown, {x: string}>["dependsOn"], {x: SeedDef<string, void>}>
 >(true)
+expectType<
+  TypeOf<SeedDef<unknown, {x: string}>["dependsOn"], {x: SeedDef<number, void>}>
+>(false)
 
 expectType<TypeEqual<unknown, SeedDef<unknown, void>["dependsOn"]>>(true)
 
@@ -50,8 +50,8 @@ expectType<TypeEqual<[unknown], Parameters<typeof CreateAString.plant>>>(true)
 
 expectType<{s: typeof CreateAString}>(CreateAnObjFromString.dependsOn)
 expectType<
-  TypeEqual<
-    [{s: PromiseValue<ReturnType<typeof CreateAString.plant>>}],
-    Parameters<typeof CreateAnObjFromString.plant>
+  TypeOf<
+    Parameters<typeof CreateAnObjFromString.plant>,
+    [{s: PromiseValue<ReturnType<typeof CreateAString.plant>>}]
   >
 >(true)
