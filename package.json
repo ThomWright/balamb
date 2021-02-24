@@ -17,6 +17,8 @@
     "balamb": "./src/bin/balamb.ts"
   },
   "scripts": {
+    "checkPushed": "[ \"$(git rev-list --count @{upstream}..HEAD)\" -eq 0 ] || (echo You have unpushed commits && exit 1)",
+    "prepublishOnly": "npm run checkPushed && npm test && npm run build",
     "check-ts-types": "tsc --noEmit",
     "lint": "eslint --ext ts src/ test/",
     "fix-linting": "eslint --fix --ext ts src/ test/",
