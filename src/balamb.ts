@@ -4,10 +4,10 @@ import {
   DanglingDependency,
   SeedFailure,
 } from "./errors"
-import {BalambType, Id, BalambResult, SeedDef} from "./types"
+import {BalambType, Id, BalambResult, SeedDef, BaseResultType} from "./types"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnySeedDef = SeedDef<unknown, any>
+type AnySeedDef = SeedDef<BaseResultType, any>
 
 export const Balamb: BalambType = {
   async run(seeds, opts) {
@@ -90,8 +90,8 @@ async function processQueue(
   outgoingEdges: Map<Id, Set<Id>>,
   {concurrencyLimit}: {concurrencyLimit: number},
   onError: (error: SeedFailure) => void,
-): Promise<Record<Id, unknown>> {
-  const resultsCache: Record<Id, unknown> = {}
+): Promise<Record<Id, BaseResultType>> {
+  const resultsCache: Record<Id, BaseResultType | void> = {}
 
   await new Promise<void>((finishedProcessing) => {
     // Kinda superfluous, but nicer to use
@@ -293,7 +293,7 @@ function createDAG(seeds: Array<AnySeedDef>): DAG | DanglingDependency {
       seed.dependsOn != null
     ) {
       const depDefs = Object.values(seed.dependsOn) as Array<
-        SeedDef<unknown, unknown>
+        SeedDef<BaseResultType, unknown>
       >
 
       depDefs.forEach((d) => {

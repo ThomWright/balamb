@@ -1,6 +1,6 @@
 import {expectType, TypeEqual, TypeOf} from "ts-expect"
-import {PromiseValue, ReadonlyDeep} from "type-fest"
-import {SeedDef, SeedRunner} from "../../src"
+import {JsonValue, PromiseValue, ReadonlyDeep} from "type-fest"
+import {BaseResultType, SeedDef, SeedRunner} from "../../src"
 import {
   CreateAnObjFromString,
   CreateAString,
@@ -11,20 +11,26 @@ import {
  */
 
 // dependsOn
-expectType<TypeEqual<unknown, SeedDef<unknown, void>["dependsOn"]>>(true)
-expectType<
-  TypeOf<SeedDef<unknown, {x: string}>["dependsOn"], {x: SeedDef<string, void>}>
->(true)
-expectType<
-  TypeOf<SeedDef<unknown, {x: string}>["dependsOn"], {x: SeedDef<number, void>}>
->(false)
-
-expectType<TypeEqual<unknown, SeedDef<unknown, void>["dependsOn"]>>(true)
-
-expectType<TypeEqual<unknown, SeedDef<unknown, void>["dependsOn"]>>(true)
+expectType<TypeEqual<unknown, SeedDef<JsonValue, void>["dependsOn"]>>(true)
 expectType<
   TypeOf<
-    SeedDef<unknown, {x: string}>["dependsOn"],
+    SeedDef<JsonValue, {x: string}>["dependsOn"],
+    {x: SeedDef<string, void>}
+  >
+>(true)
+expectType<
+  TypeOf<
+    SeedDef<JsonValue, {x: string}>["dependsOn"],
+    {x: SeedDef<number, void>}
+  >
+>(false)
+
+expectType<TypeEqual<unknown, SeedDef<JsonValue, void>["dependsOn"]>>(true)
+
+expectType<TypeEqual<unknown, SeedDef<JsonValue, void>["dependsOn"]>>(true)
+expectType<
+  TypeOf<
+    SeedDef<JsonValue, {x: string}>["dependsOn"],
     {x: SeedDef<string, {y: string}>}
   >
 >(true)
@@ -32,13 +38,17 @@ expectType<
 // plant
 expectType<
   TypeEqual<
-    Parameters<SeedDef<unknown, {x: string}>["plant"]>,
+    Parameters<SeedDef<JsonValue, {x: string}>["plant"]>,
     [ReadonlyDeep<{x: string}>]
   >
 >(true)
 expectType<
   TypeEqual<ReturnType<SeedDef<string, {x: string}>["plant"]>, Promise<string>>
 >(true)
+
+// Results
+expectType<TypeOf<BaseResultType, {x: string}>>(true) // JSON-serialisable
+expectType<TypeOf<BaseResultType, {x: () => void}>>(false) // Functions aren't serialisable
 
 /*
  * Examples

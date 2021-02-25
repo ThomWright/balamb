@@ -1,7 +1,9 @@
-import {ReadonlyDeep} from "type-fest"
+import {JsonValue, ReadonlyDeep} from "type-fest"
 import {BalambError} from "./errors"
 
 export type Id = string
+
+export type BaseResultType = JsonValue | void
 
 export interface BalambType {
   /**
@@ -19,7 +21,7 @@ export interface BalambType {
 /**
  * Defines a `Seed` (a task to be run), along with some metadata.
  */
-export type SeedDef<Result, Dependencies> = Readonly<
+export type SeedDef<Result extends BaseResultType, Dependencies> = Readonly<
   {
     /** IDs must be unique */
     id: Id
@@ -46,13 +48,15 @@ export type SeedDef<Result, Dependencies> = Readonly<
 /**
  * The seeding function.
  * @param dependencies Results of named dependencies
+ *
+ * @returns a Promise for a serialisable JSON value
  */
-export type SeedRunner<Result, Dependencies> = (
+export type SeedRunner<Result extends BaseResultType, Dependencies> = (
   dependencies: ReadonlyDeep<Dependencies>,
 ) => Promise<Result>
 
 export interface BalambResult {
-  readonly results: Record<Id, unknown>
+  readonly results: Record<Id, BaseResultType>
 }
 
 export const assertNever = (_x: never): never => {

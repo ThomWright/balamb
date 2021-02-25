@@ -8,7 +8,7 @@ export const CreateAString: SeedDef<string, void> = {
   plant: async () => "a string",
 }
 
-interface AnObj {
+type AnObj = {
   s: string
 }
 export const CreateAnObjFromString: SeedDef<AnObj, {s: string}> = {

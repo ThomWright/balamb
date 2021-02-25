@@ -28,7 +28,8 @@ const CreateAString: SeedDef<string, void> = {
   plant: async () => "thing",
 }
 
-const CreateAnObj: SeedDef<{n: number}, {s: string}> = {
+type ObjResult = {n: number}
+const CreateAnObj: SeedDef<ObjResult, {s: string}> = {
   id: "an_object",
   description: "Just returns an object, based on its dependency",
 
@@ -45,6 +46,31 @@ if (results instanceof BalambError) {
   throw new Error("oh no")
 }
 ```
+
+## Caveats
+
+### Results need to be JSON-serialisable
+
+Status: _pending_
+
+Results are required to be serialisable. This is so we can store the them, and use them later to re-hydrate a run. This will allow us to re-run a set of Seeds, ignoring old seeds and only run the _new_ seeds.
+
+To this end, all result types must extend `JsonValue | void`. `JsonValue` is defined in [type-fest](https://github.com/sindresorhus/type-fest).
+
+Looking at the previous example:
+
+```ts
+interface ObjResult {
+  n: number
+} // Won't work
+interface ObjResult extends JsonValue {
+  n: number
+} // Works!
+type ObjResult = {n: number} // Works!
+const CreateAnObj: SeedDef<ObjResult, {s: string}>
+```
+
+Here, `ObjResult` is accepted if it is defined as a `type`, or if it extends `JsonValue`.
 
 ## Why is this useful?
 

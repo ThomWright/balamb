@@ -69,26 +69,36 @@ describe("Dependencies", () => {
   it("should be available as arguments", async () => {
     let result: string | undefined
 
-    const A: SeedDef<string, void> = {
+    type AResult = {
+      a: string
+    }
+    const A: SeedDef<AResult, void> = {
       id: "a",
       description: "a",
 
-      plant: async () => "a",
+      plant: async () => ({
+        a: "a",
+      }),
     }
-    const B: SeedDef<string, {resultOfA: string}> = {
+    const B: SeedDef<
+      {
+        b: string
+      },
+      {resultOfA: AResult}
+    > = {
       id: "b",
       description: "b",
       dependsOn: {resultOfA: A},
 
-      plant: async ({resultOfA: a}) => a + "b",
+      plant: async ({resultOfA: a}) => ({b: a.a + "b"}),
     }
-    const C: SeedDef<void, {resultOfB: string}> = {
+    const C: SeedDef<void, {resultOfB: {b: string}}> = {
       id: "c",
       description: "c",
       dependsOn: {resultOfB: B},
 
       plant: async ({resultOfB: b}) => {
-        result = b + "c"
+        result = b.b + "c"
       },
     }
 
