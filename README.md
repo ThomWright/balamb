@@ -21,27 +21,42 @@ This library was initially intended for data seeding, hence the name, which come
 ```typescript
 import Balamb, {BalambError, SeedDef} from "balamb"
 
+// A `SeedDef` is a definition of a task (or `Seed`) to run.
+// The `Seed` returns a `string`.
 const CreateAString: SeedDef<string, void> = {
+  // It has a unique ID
   id: "a_string",
+
+  // A human-readable description
   description: "Just returns a string",
 
+  // And a function to run. This is the task, or `Seed`. We `plant` the `Seed`.
   plant: async () => "thing",
 }
 
 type ObjResult = {n: number}
+
+// In this case, the `Seed` returns `ObjResult`, and the dependencies
+// passed to `plant` are: `{s: string}`.
 const CreateAnObj: SeedDef<ObjResult, {s: string}> = {
   id: "an_object",
   description: "Just returns an object, based on its dependency",
 
+  // It can also define other tasks as dependencies, which will be run first.
+  // It has a single dependency which we've named `s`.
+  // The types need to match the generic parameter defined above.
   dependsOn: {s: CreateAString},
 
+  // In this case, we get passed the result of the task we depend on, which we've named `s`.
   plant: async ({s}) => ({
     n: s.length,
   }),
 }
 
+// Run the seeds!
 const results = await Balamb.run([CreateAString, CreateAnObj])
 
+// Check if it succeeded
 if (results instanceof BalambError) {
   throw new Error("oh no")
 }
