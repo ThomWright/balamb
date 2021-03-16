@@ -5,6 +5,13 @@ export type Id = string
 
 export type BaseResultType = JsonValue | void
 
+export interface Options {
+  /** Maximum number of tasks to run concurrently */
+  concurrency?: number
+  /** Pre-seed with results of e.g. a previous run */
+  preSeed?: Record<Id, BaseResultType>
+}
+
 export interface BalambType {
   /**
    * Plant the seeds, concurrently, in dependency order.
@@ -14,7 +21,7 @@ export interface BalambType {
   run(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     seeds: Array<SeedDef<any, any>>,
-    opts?: {concurrency: number},
+    opts?: Options,
   ): Promise<BalambResult | BalambError>
 }
 

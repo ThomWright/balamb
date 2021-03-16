@@ -4,7 +4,14 @@ import {
   DanglingDependency,
   SeedFailure,
 } from "./errors"
-import {BalambType, Id, BalambResult, SeedDef, BaseResultType} from "./types"
+import {
+  BalambType,
+  Id,
+  BalambResult,
+  SeedDef,
+  BaseResultType,
+  Options,
+} from "./types"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySeedDef = SeedDef<BaseResultType, any>
@@ -25,7 +32,7 @@ export const Balamb: BalambType = {
  * Seeds ready for planting.
  */
 interface SeedPlanter {
-  run(opts?: {concurrency: number}): Promise<BalambResult | BalambError>
+  run(opts?: Options): Promise<BalambResult | BalambError>
 }
 function prepare(seeds: Array<AnySeedDef>): SeedPlanter | BalambError {
   const duplicates = findDuplicates(seeds.map((seed) => seed.id))
@@ -52,21 +59,15 @@ function prepare(seeds: Array<AnySeedDef>): SeedPlanter | BalambError {
   const {outgoingEdges} = graph
 
   return {
-    run: async (opts?: {
-      concurrency: number
-    }): Promise<BalambResult | BalambError> => {
-      const {concurrency = 10} = opts ?? {}
-      const concurrencyLimit =
-        isFinite(concurrency) && concurrency >= 1
-          ? Math.min(concurrency, queue.length)
-          : queue.length
+    run: async (opts?: Options): Promise<BalambResult | BalambError> => {
+      const {concurrency, preSeed} = opts ?? {}
 
       const failures: Array<SeedFailure> = []
 
       const results = await processQueue(
         queue,
         outgoingEdges,
-        {concurrencyLimit},
+        {concurrency, preSeed},
         (failure) => failures.push(failure),
       )
 
@@ -85,13 +86,19 @@ function prepare(seeds: Array<AnySeedDef>): SeedPlanter | BalambError {
   }
 }
 
+const DEFAULT_CONCURRENCY = 10
 async function processQueue(
   queue: Array<AnySeedDef>,
   outgoingEdges: Map<Id, Set<Id>>,
-  {concurrencyLimit}: {concurrencyLimit: number},
+  {concurrency = DEFAULT_CONCURRENCY, preSeed = {}}: Options,
   onError: (error: SeedFailure) => void,
 ): Promise<Record<Id, BaseResultType>> {
-  const resultsCache: Record<Id, BaseResultType | void> = {}
+  const concurrencyLimit =
+    isFinite(concurrency) && concurrency >= 1
+      ? Math.min(concurrency, queue.length)
+      : queue.length
+
+  const resultsCache: Record<Id, BaseResultType | undefined> = {}
 
   await new Promise<void>((finishedProcessing) => {
     // Kinda superfluous, but nicer to use
@@ -123,8 +130,31 @@ async function processQueue(
       nextItemIndex++
       inFlight++
 
+      const onSuccess = (result: BaseResultType) => {
+        inFlight--
+
+        resultsCache[seed.id] = result
+        resolved.add(seed.id)
+
+        if (errored && inFlight === 0) {
+          finishedProcessing()
+        } else {
+          if (inFlight < concurrencyLimit && nextItemIndex < queue.length) {
+            tryProcessingNextItem()
+          } else if (resolved.size === queue.length) {
+            finishedProcessing()
+          }
+        }
+      }
+
+      // Check if it's been pre-seeded
+      if (seed.id in preSeed) {
+        onSuccess(preSeed[seed.id])
+        return true
+      }
+
       // Map named dependency declarations to the results of those dependencies
-      const dependencies =
+      const dependencyResults =
         "dependsOn" in seed &&
         typeof seed.dependsOn === "object" &&
         seed.dependsOn != null
@@ -136,23 +166,8 @@ async function processQueue(
 
       // eslint-disable-next-line @typescript-eslint/no-floating-promises
       seed
-        .plant(dependencies)
-        .then((result) => {
-          inFlight--
-
-          resultsCache[seed.id] = result
-          resolved.add(seed.id)
-
-          if (errored && inFlight === 0) {
-            finishedProcessing()
-          } else {
-            if (inFlight < concurrencyLimit && nextItemIndex < queue.length) {
-              tryProcessingNextItem()
-            } else if (resolved.size === queue.length) {
-              finishedProcessing()
-            }
-          }
-        })
+        .plant(dependencyResults)
+        .then(onSuccess)
         .catch((error: unknown) => {
           inFlight--
           errored = true

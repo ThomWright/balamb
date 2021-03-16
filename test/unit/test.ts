@@ -402,3 +402,63 @@ describe("Error handling", () => {
     })
   })
 })
+
+describe("Pre-seeding: re-running with previous results", () => {
+  it("should use pre-seed results and not run seeds which have been pre-seeded", async () => {
+    let aRun = false
+    let bRun = false
+    const A: SeedDef<string, void> = {
+      id: "a",
+      description: "a",
+
+      plant: async () => {
+        aRun = true
+        return "a"
+      },
+    }
+    const B: SeedDef<string, {a: string}> = {
+      id: "b",
+      description: "b",
+      dependsOn: {a: A},
+
+      plant: async ({a}) => {
+        bRun = true
+        return a + "b"
+      },
+    }
+
+    const result = await Balamb.run([A, B], {
+      preSeed: {
+        a: "nota",
+      },
+    })
+
+    expect(aRun, "A run").to.be.false
+    expect(bRun, "B run").to.be.true
+    expect(result, "result").to.eql({
+      results: {
+        a: "nota",
+        b: "notab",
+      },
+    })
+  })
+
+  it("should accept previous values for unknown seed IDs", async () => {
+    const A: SeedDef<string, void> = {
+      id: "a",
+      description: "a",
+
+      plant: async () => {
+        return "a"
+      },
+    }
+
+    const result = await Balamb.run([A], {
+      preSeed: {
+        c: "c",
+      },
+    })
+
+    expect(result).to.not.be.instanceOf(BalambError)
+  })
+})
