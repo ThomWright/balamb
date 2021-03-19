@@ -1,7 +1,7 @@
 import {
   BalambError,
   CircularDependency,
-  DanglingDependency,
+  NonUniqueIds,
   SeedFailure,
 } from "./errors"
 import {
@@ -35,27 +35,17 @@ interface SeedPlanter {
   run(opts?: Options): Promise<BalambResult | BalambError>
 }
 function prepare(seeds: Array<AnySeedDef>): SeedPlanter | BalambError {
-  const duplicates = findDuplicates(seeds.map((seed) => seed.id))
-  if (duplicates.length > 0) {
-    return new BalambError({
-      errorCode: "NON_UNIQUE_IDS",
-      duplicates,
-    })
-  }
-
   const graph = createDAG(seeds)
   if ("errorCode" in graph) {
     return new BalambError(graph)
   }
 
-  const result = sort(seeds, graph)
-
+  const result = sort(graph)
   if ("errorCode" in result) {
     return new BalambError(result)
   }
 
   const queue = result
-
   const {outgoingEdges} = graph
 
   return {
@@ -193,10 +183,12 @@ async function processQueue(
 /**
  * Kahn's algorithm for topological sort
  */
-function sort(
-  seeds: Array<AnySeedDef>,
-  {incomingEdges, outgoingEdges, indexedSeeds, numEdges}: DAG,
-): Array<AnySeedDef> | CircularDependency {
+function sort({
+  incomingEdges,
+  outgoingEdges,
+  indexedSeeds,
+  numEdges,
+}: DAG): Array<AnySeedDef> | CircularDependency {
   /*
    * Initialise
    */
@@ -210,12 +202,14 @@ function sort(
   const queue: Array<AnySeedDef> = []
 
   // Add seeds with no dependencies to processing queue
-  seeds.forEach((seed) => {
-    const es = outgoingEdges.get(seed.id)
-    if (es == null || es.size === 0) {
-      processingQueue.push(seed)
+  for (const [, seed] of indexedSeeds) {
+    if (!("dependsOn" in seed)) {
+      const es = outgoingEdges.get(seed.id)
+      if (es == null || es.size === 0) {
+        processingQueue.push(seed)
+      }
     }
-  })
+  }
 
   /*
    * Do topological sort
@@ -287,58 +281,87 @@ interface DAG {
 /**
  * @returns A Directed Acyclic Graph of seeds
  */
-function createDAG(seeds: Array<AnySeedDef>): DAG | DanglingDependency {
+function createDAG(
+  seeds: Array<AnySeedDef>,
+): DAG | CircularDependency | NonUniqueIds {
+  const doneSet = new Set<AnySeedDef>()
   const incomingEdges = new Map<Id, Set<Id>>()
   const outgoingEdges = new Map<Id, Set<Id>>()
-
   const indexedSeeds = new Map<Id, AnySeedDef>()
 
   let numEdges = 0
 
-  const danglingDependencies: Array<[Id, Id]> = []
-
-  seeds.forEach((seed) => {
-    indexedSeeds.set(seed.id, seed)
-  })
-
-  seeds.forEach((seed) => {
-    if (
-      "dependsOn" in seed &&
-      typeof seed.dependsOn === "object" &&
-      seed.dependsOn != null
-    ) {
-      const depDefs = Object.values(seed.dependsOn) as Array<
-        SeedDef<BaseResultType, unknown>
-      >
-
-      depDefs.forEach((d) => {
-        if (!indexedSeeds.has(d.id)) {
-          danglingDependencies.push([seed.id, d.id])
-          return
-        }
-        {
-          const edgeSet = incomingEdges.get(d.id)
-          if (edgeSet != null) {
-            edgeSet.add(seed.id)
-          } else {
-            incomingEdges.set(d.id, new Set([seed.id]))
-          }
-        }
-        {
-          const edgeSet = outgoingEdges.get(seed.id)
-          if (edgeSet != null) {
-            edgeSet.add(d.id)
-          } else {
-            outgoingEdges.set(seed.id, new Set([d.id]))
-          }
-        }
-        numEdges++
-      })
+  /**
+   * Try to add the seed to the graph.
+   * @returns `undefined` if successful, else an array describing a circular dependency
+   */
+  const addToGraph = (
+    parents: Set<AnySeedDef>,
+    seed: AnySeedDef,
+  ): Array<AnySeedDef> | undefined => {
+    if (parents.has(seed)) {
+      // circular dependency
+      return [seed]
     }
-  })
+    if (!doneSet.has(seed)) {
+      doneSet.add(seed)
+      indexedSeeds.set(seed.id, seed)
 
-  if (danglingDependencies.length > 0) {
-    return {errorCode: "DANGLING_DEPENDENCY", danglingDependencies}
+      if (
+        "dependsOn" in seed &&
+        typeof seed.dependsOn === "object" &&
+        seed.dependsOn != null
+      ) {
+        const depDefs = Object.values(seed.dependsOn) as Array<
+          SeedDef<BaseResultType, unknown>
+        >
+
+        for (const d of depDefs) {
+          {
+            const edgeSet = incomingEdges.get(d.id)
+            if (edgeSet != null) {
+              edgeSet.add(seed.id)
+            } else {
+              incomingEdges.set(d.id, new Set([seed.id]))
+            }
+          }
+          {
+            const edgeSet = outgoingEdges.get(seed.id)
+            if (edgeSet != null) {
+              edgeSet.add(d.id)
+            } else {
+              outgoingEdges.set(seed.id, new Set([d.id]))
+            }
+          }
+          numEdges++
+
+          const result = addToGraph(parents, d)
+          if (Array.isArray(result)) {
+            result.push(d)
+            return result
+          }
+        }
+      }
+    }
+    return undefined
+  }
+
+  for (const seed of seeds) {
+    const result = addToGraph(new Set(), seed)
+    if (Array.isArray(result)) {
+      return {
+        errorCode: "CIRCULAR_DEPENDENCY",
+        cycle: result.map((seed) => seed.id),
+      }
+    }
+  }
+
+  const duplicates = findDuplicateIds(doneSet)
+  if (duplicates.length > 0) {
+    return {
+      errorCode: "NON_UNIQUE_IDS",
+      duplicates,
+    }
   }
 
   return {
@@ -350,15 +373,17 @@ function createDAG(seeds: Array<AnySeedDef>): DAG | DanglingDependency {
   }
 }
 
-function findDuplicates(array: Array<Id>): Array<Id> {
-  const sorted = array.slice().sort()
-  const results = []
-  for (let i = 0; i < sorted.length - 1; i++) {
-    if (sorted[i + 1] === sorted[i]) {
-      results.push(sorted[i])
+function findDuplicateIds(seeds: Set<AnySeedDef>): Array<Id> {
+  const duplicates = []
+  const ids = new Set()
+  for (const seed of seeds) {
+    if (ids.has(seed.id)) {
+      duplicates.push(seed.id)
+    } else {
+      ids.add(seed.id)
     }
   }
-  return results
+  return duplicates
 }
 
 function mapObjIndexed<T, TResult, TKey extends string>(

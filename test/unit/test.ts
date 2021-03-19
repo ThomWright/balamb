@@ -4,7 +4,6 @@ import {nextTick} from "process"
 import Balamb, {
   BalambError,
   CircularDependency,
-  DanglingDependency,
   NonUniqueIds,
   BalambResult,
   SeedDef,
@@ -25,17 +24,33 @@ describe("A successful result", () => {
   })
 })
 
-describe("Duplicate IDs", () => {
-  it("should be detected and result in an error", async () => {
-    const result = (await Balamb.run([
-      CreateAString,
-      CreateAString,
-    ])) as BalambError
+describe("Duplicates", () => {
+  context("duplicate IDs on different seeds", () => {
+    it("should be detected and result in an error", async () => {
+      const result = (await Balamb.run([
+        CreateAString,
+        {
+          ...CreateAString,
+          id: CreateAString.id,
+        },
+      ])) as BalambError
 
-    expect(result).to.be.instanceOf(BalambError)
-    expect(result.info.errorCode).to.equal("NON_UNIQUE_IDS")
-    const info = result.info as NonUniqueIds
-    expect(info.duplicates).to.eql([CreateAString.id])
+      expect(result).to.be.instanceOf(BalambError)
+      expect(result.info.errorCode).to.equal("NON_UNIQUE_IDS")
+      const info = result.info as NonUniqueIds
+      expect(info.duplicates).to.eql([CreateAString.id])
+    })
+  })
+
+  context("duplicate seeds (same reference)", () => {
+    it("should be accepted and de-duplicated", async () => {
+      const result = (await Balamb.run([
+        CreateAString,
+        CreateAString,
+      ])) as BalambResult
+
+      expect(result.results, "results").to.eql({[CreateAString.id]: "a string"})
+    })
   })
 })
 
@@ -109,26 +124,27 @@ describe("Dependencies", () => {
 
   context("Circular dependencies", () => {
     it("should be detected and result in an error", async () => {
-      const Btemp: SeedDef<void, void> = {
-        id: "b",
-        description: "b",
-
-        plant: async () => {
-          //
-        },
-      }
-      const A: SeedDef<void, {b: void}> = {
+      const A = {
         id: "a",
         description: "a",
-        dependsOn: {b: Btemp},
 
         plant: async () => {
           //
         },
       }
       const B: SeedDef<void, {a: void}> = {
-        ...Btemp,
+        id: "b",
+        description: "b",
+
         dependsOn: {a: A},
+
+        plant: async () => {
+          //
+        },
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access,@typescript-eslint/no-explicit-any
+      ;(A as any).dependsOn = {
+        b: B,
       }
 
       const result = (await Balamb.run([A, B])) as BalambError
@@ -141,15 +157,54 @@ describe("Dependencies", () => {
   })
 
   context("Missing dependencies", () => {
-    it("should be rejected", async () => {
-      const result = (await Balamb.run([CreateAnObjFromString])) as BalambError
+    it("should be accepted and run", async () => {
+      const result = (await Balamb.run([CreateAnObjFromString])) as BalambResult
 
-      expect(result).to.be.instanceOf(BalambError)
-      expect(result.info.errorCode).to.equal("DANGLING_DEPENDENCY")
-      const info = result.info as DanglingDependency
-      expect(info.danglingDependencies).to.eql([
-        [CreateAnObjFromString.id, CreateAString.id],
-      ])
+      expect(result.results, "results").to.eql({
+        [CreateAString.id]: "a string",
+        [CreateAnObjFromString.id]: {s: "a string"},
+      })
+    })
+  })
+
+  context("Deep nesting", () => {
+    it("should work", async () => {
+      const A: SeedDef<string, void> = {
+        id: "A",
+        description: "A",
+
+        plant: async () => {
+          return "A"
+        },
+      }
+      const B: SeedDef<string, {a: string}> = {
+        id: "B",
+        description: "B",
+        dependsOn: {a: A},
+
+        plant: async () => {
+          return "B"
+        },
+      }
+      const C: SeedDef<string, {b: string}> = {
+        id: "C",
+        description: "C",
+        dependsOn: {b: B},
+
+        plant: async () => {
+          return "C"
+        },
+      }
+
+      const result = (await Balamb.run([C])) as BalambResult
+
+      expect(result, "result").to.eql({
+        results: {
+          A: "A",
+          B: "B",
+          C: "C",
+        },
+      })
     })
   })
 })
