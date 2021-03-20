@@ -24,6 +24,14 @@ describe("A successful result", () => {
   })
 })
 
+describe("Empty", () => {
+  it("should succeed", async () => {
+    const result = (await Balamb.run([])) as BalambResult
+
+    expect(result.results, "results").to.eql({})
+  })
+})
+
 describe("Duplicates", () => {
   context("duplicate IDs on different seeds", () => {
     it("should be detected and result in an error", async () => {
@@ -514,6 +522,131 @@ describe("Pre-seeding: re-running with previous results", () => {
       },
     })
 
-    expect(result).to.not.be.instanceOf(BalambError)
+    expect(result, "result").to.not.be.instanceOf(BalambError)
+    expect(result, "result").to.eql({
+      results: {
+        a: "a",
+      },
+    })
+  })
+})
+
+describe("Tags", () => {
+  it("should only run matching tags", async () => {
+    const Matching: SeedDef<boolean, void> = {
+      id: "matching",
+      description: "Matches tag",
+
+      tags: ["tag"],
+
+      plant: async () => {
+        return true
+      },
+    }
+
+    const NotMatching: SeedDef<boolean, void> = {
+      id: "not-matching",
+      description: "Does not match tag",
+
+      tags: ["not-tag"],
+
+      plant: async () => {
+        return true
+      },
+    }
+
+    const NoTags: SeedDef<boolean, void> = {
+      id: "no-tags",
+      description: "No tags",
+
+      plant: async () => {
+        return true
+      },
+    }
+
+    const DependedOnByTag: SeedDef<boolean, void> = {
+      id: "depended-on-by-tag",
+      description: "",
+
+      plant: async () => {
+        return true
+      },
+    }
+
+    const DependencyWithTag: SeedDef<boolean, {D: boolean}> = {
+      id: "dep-with-tag",
+      description: "",
+
+      dependsOn: {
+        D: DependedOnByTag,
+      },
+
+      tags: ["tag"],
+
+      plant: async () => {
+        return true
+      },
+    }
+
+    const DependsOnTag: SeedDef<boolean, {D: boolean}> = {
+      id: "deps-on-tag",
+      description: "",
+
+      dependsOn: {D: DependencyWithTag},
+
+      plant: async () => {
+        return true
+      },
+    }
+
+    const EmptyTags: SeedDef<boolean, void> = {
+      id: "empty-tags",
+      description: "Empty tags",
+
+      tags: [],
+
+      plant: async () => {
+        return true
+      },
+    }
+
+    const result = await Balamb.run(
+      [Matching, NotMatching, NoTags, EmptyTags, DependsOnTag],
+      {
+        tags: ["tag"],
+      },
+    )
+
+    expect(result, "result").to.eql({
+      results: {
+        matching: true,
+        "dep-with-tag": true,
+        "depended-on-by-tag": true,
+      },
+    })
+  })
+
+  context("empty tags list", () => {
+    // Not sure about this...
+    it("should run no tags", async () => {
+      const Tagged: SeedDef<boolean, void> = {
+        id: "tag",
+        description: "Tag",
+
+        tags: ["tag"],
+
+        plant: async () => {
+          return true
+        },
+      }
+
+      const result = await Balamb.run([Tagged], {
+        tags: [],
+      })
+
+      expect(result, "result").to.eql({
+        results: {},
+      })
+    })
   })
 })

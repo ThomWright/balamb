@@ -18,7 +18,7 @@ type AnySeedDef = SeedDef<BaseResultType, any>
 
 export const Balamb: BalambType = {
   async run(seeds, opts) {
-    const planter = prepare(seeds)
+    const planter = prepare(seeds, opts?.tags)
 
     if (planter instanceof BalambError) {
       return planter
@@ -34,12 +34,14 @@ export const Balamb: BalambType = {
 interface SeedPlanter {
   run(opts?: Options): Promise<BalambResult | BalambError>
 }
-function prepare(seeds: Array<AnySeedDef>): SeedPlanter | BalambError {
-  const graph = createDAG(seeds)
+function prepare(
+  seeds: Array<AnySeedDef>,
+  tags?: Array<string>,
+): SeedPlanter | BalambError {
+  const graph = createDAG(seeds, tags)
   if ("errorCode" in graph) {
     return new BalambError(graph)
   }
-
   const result = sort(graph)
   if ("errorCode" in result) {
     return new BalambError(result)
@@ -89,6 +91,10 @@ async function processQueue(
       : queue.length
 
   const resultsCache: Record<Id, BaseResultType | undefined> = {}
+
+  if (queue.length === 0) {
+    return resultsCache
+  }
 
   await new Promise<void>((finishedProcessing) => {
     // Kinda superfluous, but nicer to use
@@ -283,7 +289,9 @@ interface DAG {
  */
 function createDAG(
   seeds: Array<AnySeedDef>,
+  onlyTags?: Array<string>,
 ): DAG | CircularDependency | NonUniqueIds {
+  const tagLookup = new Set(onlyTags)
   const doneSet = new Set<AnySeedDef>()
   const incomingEdges = new Map<Id, Set<Id>>()
   const outgoingEdges = new Map<Id, Set<Id>>()
@@ -297,16 +305,24 @@ function createDAG(
    */
   const addToGraph = (
     parents: Set<AnySeedDef>,
+    /** If true, include regardless of tags */
+    includeOverride: boolean,
     seed: AnySeedDef,
   ): Array<AnySeedDef> | undefined => {
     if (parents.has(seed)) {
-      // circular dependency
+      // Circular dependency
       return [seed]
     }
-    if (!doneSet.has(seed)) {
-      doneSet.add(seed)
-      indexedSeeds.set(seed.id, seed)
 
+    const include =
+      includeOverride ||
+      (seed.tags != null && seed.tags.some((tag) => tagLookup.has(tag)))
+
+    if (!doneSet.has(seed)) {
+      if (include) {
+        doneSet.add(seed)
+        indexedSeeds.set(seed.id, seed)
+      }
       if (
         "dependsOn" in seed &&
         typeof seed.dependsOn === "object" &&
@@ -315,27 +331,27 @@ function createDAG(
         const depDefs = Object.values(seed.dependsOn) as Array<
           SeedDef<BaseResultType, unknown>
         >
-
         for (const d of depDefs) {
-          {
-            const edgeSet = incomingEdges.get(d.id)
-            if (edgeSet != null) {
-              edgeSet.add(seed.id)
-            } else {
-              incomingEdges.set(d.id, new Set([seed.id]))
+          if (include) {
+            {
+              const edgeSet = incomingEdges.get(d.id)
+              if (edgeSet != null) {
+                edgeSet.add(seed.id)
+              } else {
+                incomingEdges.set(d.id, new Set([seed.id]))
+              }
             }
-          }
-          {
-            const edgeSet = outgoingEdges.get(seed.id)
-            if (edgeSet != null) {
-              edgeSet.add(d.id)
-            } else {
-              outgoingEdges.set(seed.id, new Set([d.id]))
+            {
+              const edgeSet = outgoingEdges.get(seed.id)
+              if (edgeSet != null) {
+                edgeSet.add(d.id)
+              } else {
+                outgoingEdges.set(seed.id, new Set([d.id]))
+              }
             }
+            numEdges++
           }
-          numEdges++
-
-          const result = addToGraph(parents, d)
+          const result = addToGraph(parents, include, d)
           if (Array.isArray(result)) {
             result.push(d)
             return result
@@ -347,7 +363,11 @@ function createDAG(
   }
 
   for (const seed of seeds) {
-    const result = addToGraph(new Set(), seed)
+    const result = addToGraph(
+      /* parents */ new Set(),
+      /* include if tags haven't been specified */ onlyTags == null,
+      seed,
+    )
     if (Array.isArray(result)) {
       return {
         errorCode: "CIRCULAR_DEPENDENCY",

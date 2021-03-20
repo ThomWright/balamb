@@ -4,26 +4,13 @@ Concurrently run a set of dependent, asynchronous tasks with type-safe dependenc
 
 This library was initially intended for data seeding, hence the name, which comes from Final Fantasy VIII. Balamb Garden is a school where cadets, known as SeeDs, are trained.
 
-## To do list
-
-- [x] Concurrency
-- [x] Error handling
-- [x] Better error messaging
-- [x] CI (GitHub Actions)
-- [ ] Tags (run only selected tags)
-- [x] Save/load previously run IDs (can configure to only run new seeds)
-- [ ] Document pre-seeding
-- [ ] Idempotency declaration (can be rerun every time, if configured)
-- [ ] More docs explaining these features
-- [ ] Maybe a CLI?
-
 ## Example
 
 ```typescript
 import Balamb, {BalambError, SeedDef} from "balamb"
 
 // A `SeedDef` is a definition of a task (or `Seed`) to run.
-// The `Seed` returns a `string`.
+// This `Seed` returns a `string`, and has no dependencies.
 const CreateAString: SeedDef<string, void> = {
   // It has a unique ID
   id: "a_string",
@@ -37,8 +24,8 @@ const CreateAString: SeedDef<string, void> = {
 
 type ObjResult = {n: number}
 
-// In this case, the `Seed` returns `ObjResult`, and the dependencies
-// passed to `plant` are: `{s: string}`.
+// This `Seed` returns `ObjResult`, and has a single dependency named `s`
+// which returns a string: `{s: string}`.
 const CreateAnObj: SeedDef<ObjResult, {s: string}> = {
   id: "an_object",
   description: "Just returns an object, based on its dependency",
@@ -48,7 +35,8 @@ const CreateAnObj: SeedDef<ObjResult, {s: string}> = {
   // The types need to match the generic parameter defined above.
   dependsOn: {s: CreateAString},
 
-  // In this case, we get passed the result of the task we depend on, which we've named `s`.
+  // We get passed the result of the task we depend on, which we've named `s`.
+  // As before, the types must match.
   plant: async ({s}) => ({
     n: s.length,
   }),
@@ -63,11 +51,62 @@ if (results instanceof BalambError) {
 }
 ```
 
-## Caveats
+## Rules
 
-### Results need to be JSON-serialisable
+### Duplicates
 
-Status: _pending_
+- Seeds will be de-duplicated using reference equality
+  - this means a unique seed will only be run once, even if provided several times
+- Different seeds with the same ID will be rejected and an error returned
+
+### Tagging
+
+Tags can be used to run a subset of seeds.
+
+If no tags are supplied to `Balamb.run` then all seeds are run. If tags are supplied then only seeds with matching tags (and their dependencies) are run.
+
+In the following example, only `matching` and `dependency` will be run.
+
+```typescript
+const NonTaggedDependency: SeedDef<boolean, void> = {
+  id: "dependency",
+  description: "Dependency of a seed with a matching tag",
+
+  plant: async () => {
+    return true
+  },
+}
+
+const Matching: SeedDef<boolean, {D: boolean}> = {
+  id: "matching",
+  description: "Matches tag",
+
+  dependsOn: {D: NonTaggedDependency}
+
+  tags: ["tag"],
+
+  plant: async () => {
+    return true
+  },
+}
+
+const NotMatching: SeedDef<boolean, void> = {
+  id: "not-matching",
+  description: "Does not match tag",
+
+  tags: ["not-tag"],
+
+  plant: async () => {
+    return true
+  },
+}
+
+await Balamb.run([Matching, NotMatching, NonTaggedDependency], {
+  tags: ["tag"],
+})
+```
+
+### Results must be JSON-serialisable
 
 Results are required to be serialisable. This is so we can store the them, and use them later to re-hydrate a run. This will allow us to re-run a set of Seeds, ignoring old seeds and only run the _new_ seeds.
 
@@ -87,6 +126,19 @@ const CreateAnObj: SeedDef<ObjResult, {s: string}>
 ```
 
 Here, `ObjResult` is accepted if it is defined as a `type`, or if it extends `JsonValue`.
+
+Implementing persistent storage of previous runs is left to the client, if required.
+
+### Error handling
+
+Balamb will return errors in some cases, e.g. invalid input or if seeds fail to run.
+
+These general rules apply. Errors should:
+
+- be `instanceof Error`
+- be `instanceof BalambError`
+- include an `info` property with a unique `errorCode` and other useful information
+- have an informative error message
 
 ## Why is this useful?
 

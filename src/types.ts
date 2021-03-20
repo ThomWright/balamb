@@ -10,6 +10,8 @@ export interface Options {
   concurrency?: number
   /** Pre-seed with results of e.g. a previous run */
   preSeed?: Record<Id, BaseResultType>
+  /** If provided, only run tasks with these tags (and their dependencies) */
+  tags?: Array<string>
 }
 
 export interface BalambType {
@@ -34,6 +36,8 @@ export type SeedDef<Result extends BaseResultType, Dependencies> = Readonly<
     id: Id
     /** Human-readable description */
     description: string
+
+    tags?: Array<string>
 
     /**
      * The seeding operation. Plants the seed!
