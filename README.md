@@ -55,7 +55,7 @@ if (results instanceof BalambError) {
 
 ### Duplicates
 
-- Seeds will be de-duplicated using reference equality
+- Seeds will be de-duplicated using value equality (think `===` and `Set`s)
   - this means a unique seed will only be run once, even if provided several times
 - Different seeds with the same ID will be rejected and an error returned
 
@@ -139,6 +139,8 @@ These general rules apply. Errors should:
 - be `instanceof BalambError`
 - include an `info` property with a unique `errorCode` and other useful information
 - have an informative error message
+
+In the case where a seed fails to run (its returned Promise rejects), then an error will be returned after the currently running seeds complete. No new seeds will be started. _Subject to change_.
 
 ## Why is this useful?
 
