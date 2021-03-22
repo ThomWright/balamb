@@ -1,5 +1,5 @@
 import {expectType, TypeOf} from "ts-expect"
-import {assertNever, Id} from "./types"
+import {assertNever, BaseResultType, Id} from "./types"
 
 export const ERROR_CODES = [
   "NON_UNIQUE_IDS",
@@ -39,7 +39,7 @@ export interface CircularDependency {
 export interface SeedFailures {
   readonly errorCode: "SEED_FAILURES"
   readonly failures: Array<SeedFailure>
-  readonly partialResults: Record<Id, unknown>
+  readonly partialResults: Record<Id, BaseResultType>
 }
 export interface SeedFailure {
   readonly id: Id
