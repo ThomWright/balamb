@@ -526,7 +526,75 @@ describe("Pre-seeding: re-running with previous results", () => {
     expect(result, "result").to.eql({
       results: {
         a: "a",
+        c: "c",
       },
+    })
+  })
+
+  context("Using tags to run a subset", () => {
+    context("Running zero seeds", () => {
+      it("should return the pre-seeded results", async () => {
+        const A: SeedDef<string, void> = {
+          id: "a",
+          description: "a",
+
+          plant: async () => {
+            return "current"
+          },
+        }
+
+        const result = await Balamb.run([A], {
+          preSeed: {
+            a: "previous",
+          },
+          tags: ["no-match"],
+        })
+
+        expect(result, "result").to.not.be.instanceOf(BalambError)
+        expect(result, "result").to.eql({
+          results: {
+            a: "previous",
+          },
+        })
+      })
+    })
+
+    context("Running some seeds", () => {
+      it("should return the pre-seeded results", async () => {
+        const A: SeedDef<string, void> = {
+          id: "A",
+          description: "A",
+
+          plant: async () => {
+            return "current"
+          },
+        }
+
+        const B: SeedDef<string, void> = {
+          id: "B",
+          description: "B",
+          tags: ["match"],
+
+          plant: async () => {
+            return "B"
+          },
+        }
+
+        const result = await Balamb.run([A, B], {
+          preSeed: {
+            A: "previous",
+          },
+          tags: ["match"],
+        })
+
+        expect(result, "result").to.not.be.instanceOf(BalambError)
+        expect(result, "result").to.eql({
+          results: {
+            A: "previous",
+            B: "B",
+          },
+        })
+      })
     })
   })
 })

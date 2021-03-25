@@ -90,7 +90,7 @@ async function processQueue(
       ? Math.min(concurrency, queue.length)
       : queue.length
 
-  const resultsCache: Record<Id, BaseResultType | undefined> = {}
+  const resultsCache: Record<Id, BaseResultType | undefined> = preSeed
 
   if (queue.length === 0) {
     return resultsCache

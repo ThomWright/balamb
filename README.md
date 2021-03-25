@@ -55,7 +55,7 @@ if (results instanceof BalambError) {
 
 ### Duplicates
 
-- Seeds will be de-duplicated using value equality (think `===` and `Set`s)
+- Seeds will be de-duplicated using identity equality (think `===` and `Set`s)
   - this means a unique seed will only be run once, even if provided several times
 - Different seeds with the same ID will be rejected and an error returned
 
@@ -106,9 +106,27 @@ await Balamb.run([Matching, NotMatching, NonTaggedDependency], {
 })
 ```
 
-### Results must be JSON-serialisable
+### Pre-seeding
 
-Results are required to be serialisable. This is so we can store the them, and use them later to re-hydrate a run. This will allow us to re-run a set of Seeds, ignoring old seeds and only run the _new_ seeds.
+It is possible to 'pre-seed' Balamb with results, indexed by ID. Seeds with results supplied in this way will not be run. Any seeds which depend on these will receive the pre-seeded results.
+
+It is important to note that this circumvents the type checking. Beware!
+
+One use-case for this is to cache previous results. This way, you can do the following:
+
+1. Run all seeds, save results
+1. Add a new seeding task
+1. Load previous results, re-run Balamb with previous results pre-seeded
+
+This way, only the new seed will be run.
+
+There are some caveats though. For example, as noted, the types are not checked. If result types change (e.g. by adding a new property to an object) and previous results become invalid... _oh no_.
+
+Implementing persistent storage of previous runs is left to the client, if required.
+
+#### Results must be JSON-serialisable
+
+For this to work, results are required to be serialisable. This is so we can store the them, and use them later to re-hydrate a run. This will allow us to re-run a set of Seeds, ignoring old seeds and only run the _new_ seeds.
 
 To this end, all result types must extend `JsonValue | void`. `JsonValue` is defined in [type-fest](https://github.com/sindresorhus/type-fest).
 
@@ -127,7 +145,9 @@ const CreateAnObj: SeedDef<ObjResult, {s: string}>
 
 Here, `ObjResult` is accepted if it is defined as a `type`, or if it extends `JsonValue`.
 
-Implementing persistent storage of previous runs is left to the client, if required.
+Note that `void` is an exception: `plant` functions are allow to return `void` (`undefined` at run time) which is not JSON-serialisable.
+
+If I'm honest, I'm not sure about this design decision and am tempted to revert this requirement!
 
 ### Error handling
 
