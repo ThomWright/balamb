@@ -99,14 +99,24 @@ async function processQueue(
   await new Promise<void>((finishedProcessing) => {
     // Kinda superfluous, but nicer to use
     const resolved = new Set<Id>()
+    const unprocessable = new Set<Id>()
 
     let nextItemIndex = 0
     let inFlight = 0
-    let errored = false
+
+    function done(id: string) {
+      resolved.add(id)
+
+      if (inFlight < concurrencyLimit && nextItemIndex < queue.length) {
+        tryProcessingNextItem()
+      } else if (resolved.size === queue.length) {
+        finishedProcessing()
+      }
+    }
 
     /**
      * Try processing the next item in the queue
-     * @returns Whether the next item began processing
+     * @returns Whether the item began processing
      */
     function tryProcessingNextItem(): boolean {
       // Pick next seed off the queue
@@ -114,12 +124,17 @@ async function processQueue(
 
       // Determine if we can process it yet
       const depIds = outgoingEdges.get(seed.id)
-      if (
-        depIds != null &&
-        ![...depIds].every((depId) => resolved.has(depId))
-      ) {
-        // This seed's dependencies aren't ready yet
-        return false
+      if (depIds != null) {
+        if ([...depIds].some((depId) => unprocessable.has(depId))) {
+          // This seed has dependencies which we can't process, skip it
+          unprocessable.add(seed.id)
+          nextItemIndex++
+          done(seed.id)
+          return false
+        } else if (![...depIds].every((depId) => resolved.has(depId))) {
+          // This seed's dependencies aren't ready yet, we can come back to it later
+          return false
+        }
       }
 
       // Yep, we're gonna process it
@@ -132,15 +147,7 @@ async function processQueue(
         resultsCache[seed.id] = result
         resolved.add(seed.id)
 
-        if (errored && inFlight === 0) {
-          finishedProcessing()
-        } else {
-          if (inFlight < concurrencyLimit && nextItemIndex < queue.length) {
-            tryProcessingNextItem()
-          } else if (resolved.size === queue.length) {
-            finishedProcessing()
-          }
-        }
+        done(seed.id)
       }
 
       // Check if it's been pre-seeded
@@ -166,11 +173,9 @@ async function processQueue(
         .then(onSuccess)
         .catch((error: unknown) => {
           inFlight--
-          errored = true
+          unprocessable.add(seed.id)
           onError({id: seed.id, error})
-          if (inFlight === 0) {
-            finishedProcessing()
-          }
+          done(seed.id)
         })
 
       return true
@@ -187,7 +192,7 @@ async function processQueue(
 }
 
 /**
- * Kahn's algorithm for topological sort
+ * Topologically sort the DAG
  */
 function sort({
   incomingEdges,
@@ -218,7 +223,7 @@ function sort({
   }
 
   /*
-   * Do topological sort
+   * Do topological sort using Kahn's algorithm
    */
 
   // while temp is not empty do
@@ -234,7 +239,7 @@ function sort({
     remainingOutgoingEdges.set(k, new Set(v))
   })
   while (processingQueue.length > 0) {
-    const n = processingQueue.pop() as AnySeedDef
+    const n = processingQueue.shift() as AnySeedDef
     queue.push(n)
     const nIncoming = incomingEdges.get(n.id)
     if (nIncoming) {

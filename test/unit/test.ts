@@ -373,6 +373,51 @@ describe("Concurrency", () => {
       expect(max, "maximum witnessed concurrency").to.equal(2)
     })
   })
+
+  context("3 independent A->B graphs", () => {
+    it("should run at a concurrency of 3", async () => {
+      const events: Array<string> = []
+
+      const seedDefs = ["a", "b", "c"].map(
+        (id): SeedDef<void, void> => {
+          const dep = {
+            id: id + "2",
+            description: id + "2",
+
+            plant: async () => {
+              events.push("(")
+              await new Promise<void>((resolve) => {
+                nextTick(resolve)
+              })
+              events.push(")")
+            },
+          }
+          return {
+            id: id + "1",
+            description: id + "1",
+            dependsOn: {d: dep},
+
+            plant: async () => {
+              events.push("(")
+              await new Promise<void>((resolve) => {
+                nextTick(resolve)
+              })
+              events.push(")")
+            },
+          }
+        },
+      )
+
+      await Balamb.run(seedDefs, {concurrency: 5})
+
+      expect(events, "events").to.have.length(seedDefs.length * 2 * 2)
+
+      const max = checkConcurrency(events, {maxConcurrency: 3})
+
+      // Our concurrency is bounded by the shape of the DAGs here
+      expect(max, "maximum witnessed concurrency").to.equal(3)
+    })
+  })
 })
 
 /**
@@ -419,7 +464,7 @@ describe("Error handling", () => {
       expect(info.failures.map((f) => f.id)).to.eql([Fail.id])
     })
 
-    it("should stop subsequent seeds running", async () => {
+    it("should stop dependent seeds running", async () => {
       let didRun = false
 
       await Balamb.run([
@@ -444,24 +489,36 @@ describe("Error handling", () => {
     it("should let currently running seeds finish", async () => {
       let didFinish = false
 
-      await Balamb.run([
-        Fail,
-        {
-          id: "not-fail",
-          description: "Should finish",
+      const NotFail1 = {
+        id: "not-fai1",
+        description: "Should finish",
 
-          plant: async () => {
-            await new Promise<void>((resolve) => {
-              setTimeout(() => {
-                didFinish = true
-                resolve()
-              }, 10)
-            })
-          },
+        plant: async () => {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, 10)
+          })
+          return 1
         },
-      ])
+      }
 
-      expect(didFinish, "other seed did finish").to.be.true
+      const NotFail2 = {
+        id: "not-fail2",
+        description: "Should finish too",
+        dependsOn: {x: NotFail1},
+
+        plant: async () => {
+          await new Promise<void>((resolve) => {
+            setTimeout(resolve, 10)
+          })
+          didFinish = true
+          return 2
+        },
+      }
+
+      const result = (await Balamb.run([Fail, NotFail2])) as BalambError
+
+      expect(result, "result").to.be.instanceOf(BalambError)
+      expect(didFinish, "other seeds did finish").to.be.true
     })
   })
 })

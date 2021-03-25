@@ -160,7 +160,7 @@ These general rules apply. Errors should:
 - include an `info` property with a unique `errorCode` and other useful information
 - have an informative error message
 
-In the case where a seed fails to run (its returned Promise rejects), then an error will be returned after the currently running seeds complete. No new seeds will be started. _Subject to change_.
+In the case where a seed fails to run (its returned Promise rejects) an error will be returned. All possible seeds will be run before returning the error. Any seeds which depend on failed seeds will be skipped.
 
 ## Why is this useful?
 
