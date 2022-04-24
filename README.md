@@ -106,7 +106,7 @@ await Balamb.run([Matching, NotMatching, NonTaggedDependency], {
 })
 ```
 
-### Pre-seeding
+### <a name="preseed"><a/>Pre-seeding
 
 It is possible to 'pre-seed' Balamb with results, indexed by ID. Seeds with results supplied in this way will not be run. Any seeds which depend on these will receive the pre-seeded results.
 
@@ -118,7 +118,7 @@ One use-case for this is to cache previous results. This way, you can do the fol
 1. Add a new seeding task
 1. Load previous results, re-run Balamb with previous results pre-seeded
 
-This way, only the new seed will be run.
+And only the new seed will be run.
 
 There are some caveats though. For example, as noted, the types are not checked. If result types change (e.g. by adding a new property to an object) and previous results become invalid... _oh no_.
 
@@ -126,7 +126,7 @@ Implementing persistent storage of previous runs is left to the client, if requi
 
 #### Results must be JSON-serialisable
 
-For this to work, results are required to be serialisable. This is so we can store the them, and use them later to re-hydrate a run. This will allow us to re-run a set of Seeds, ignoring old seeds and only run the _new_ seeds.
+For this to work, results are required to be serialisable. This is so we can store them, and use them later to re-hydrate a run. This allows us to re-run a set of Seeds, ignoring any old seeds and only run the _new_ seeds. See [Pre-seeding](#preseed) above.
 
 To this end, all result types must extend `JsonValue | void`. `JsonValue` is defined in [type-fest](https://github.com/sindresorhus/type-fest).
 
